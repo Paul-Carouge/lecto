@@ -40,7 +40,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'My Library',
+          'Bibliothèque',
           style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w700),
         ),
         actions: [
@@ -63,7 +63,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   onChanged: (_) => setState(() {}),
                   style: GoogleFonts.inter(fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'Search by title, author, or ISBN...',
+                    hintText: 'Rechercher par titre, auteur ou ISBN...',
                     prefixIcon: const Icon(Icons.search_rounded, size: 20),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -95,31 +95,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
                 _FilterChip(
-                  label: 'All',
+                  label: 'Tous',
                   selected: _selectedFilter == null,
                   onTap: () => setState(() => _selectedFilter = null),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Reading',
+                  label: 'En cours',
                   selected: _selectedFilter == ReadingStatus.reading,
                   onTap: () => setState(() => _selectedFilter = ReadingStatus.reading),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Finished',
+                  label: 'Terminé',
                   selected: _selectedFilter == ReadingStatus.finished,
                   onTap: () => setState(() => _selectedFilter = ReadingStatus.finished),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Want to Read',
+                  label: 'À lire',
                   selected: _selectedFilter == ReadingStatus.wantToRead,
                   onTap: () => setState(() => _selectedFilter = ReadingStatus.wantToRead),
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
-                  label: 'Abandoned',
+                  label: 'Abandonné',
                   selected: _selectedFilter == ReadingStatus.abandoned,
                   onTap: () => setState(() => _selectedFilter = ReadingStatus.abandoned),
                 ),
@@ -184,7 +184,7 @@ class _BookGrid extends ConsumerWidget {
         child: GridView.builder(
           padding: const EdgeInsets.only(bottom: 80),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
+            crossAxisCount: 2,
             childAspectRatio: 0.65,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
@@ -212,11 +212,11 @@ class _BookGrid extends ConsumerWidget {
         if (filtered.isEmpty) {
           return EmptyState(
             emoji: searchFilter != null ? '🔍' : '📚',
-            title: searchFilter != null ? 'No books found' : 'Your library is empty',
+            title: searchFilter != null ? 'Aucun livre trouvé' : 'Votre bibliothèque est vide',
             subtitle: searchFilter != null
-                ? 'Try a different search term'
-                : 'Add your first book to start tracking your reading journey!',
-            actionLabel: 'Add a Book',
+                ? 'Essayez un autre terme de recherche'
+                : 'Ajoutez votre premier livre pour commencer !',
+            actionLabel: 'Ajouter un livre',
             actionIcon: Icons.add_rounded,
             onAction: () => Navigator.pushNamed(context, '/add-book'),
           );
@@ -229,7 +229,7 @@ class _BookGrid extends ConsumerWidget {
             child: GridView.builder(
               padding: const EdgeInsets.only(bottom: 80),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
+                crossAxisCount: 2,
                 childAspectRatio: 0.65,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,

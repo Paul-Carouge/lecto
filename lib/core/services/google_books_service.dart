@@ -22,6 +22,8 @@ class GoogleBooksService {
         'q': query.trim(),
         'maxResults': '40',
         'printType': 'books',
+        'orderBy': 'relevance',
+        'langRestrict': 'fr',
       },
     );
 
@@ -101,6 +103,7 @@ class GoogleBooksService {
         'maxResults': '20',
         'printType': 'books',
         'orderBy': 'relevance',
+        'langRestrict': 'fr',
       },
     );
 

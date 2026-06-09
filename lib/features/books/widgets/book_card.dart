@@ -48,8 +48,9 @@ class BookCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Cover image area
-              Expanded(
+              // Cover image — fixed height
+              SizedBox(
+                height: 140,
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
                   child: _buildCover(),
@@ -85,7 +86,7 @@ class BookCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    // Status badge + progress
+                    // Status badge
                     if (isReading && book.pageCount != null && book.pageCount! > 0)
                       _buildProgressBar(context)
                     else
@@ -105,6 +106,7 @@ class BookCard extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: book.coverUrl!,
         fit: BoxFit.cover,
+        width: double.infinity,
         placeholder: (_, __) => _coverPlaceholder(),
         errorWidget: (_, __, ___) => _coverPlaceholder(),
       );
@@ -114,6 +116,7 @@ class BookCard extends StatelessWidget {
 
   Widget _coverPlaceholder() {
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -154,17 +157,12 @@ class BookCard extends StatelessWidget {
   }
 
   Widget _buildProgressBar(BuildContext context) {
-    final progress = book.pageCount! > 0
-        ? 0.0 // currentPage not stored on Book model
-        : 0.0;
-
     return Column(
       children: [
-        // Progress bar background
         ClipRRect(
           borderRadius: BorderRadius.circular(3),
           child: LinearProgressIndicator(
-            value: progress.clamp(0.0, 1.0),
+            value: 0.0,
             backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
             valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
             minHeight: 4,
@@ -172,7 +170,7 @@ class BookCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          '${(progress * 100).round()}%',
+          '0%',
           style: GoogleFonts.inter(
             fontSize: 10,
             fontWeight: FontWeight.w600,
@@ -183,19 +181,12 @@ class BookCard extends StatelessWidget {
     );
   }
 
-  ReadingStatus _parseStatus(String status) {
-    return ReadingStatus.values.firstWhere(
-      (s) => s.name == status,
-      orElse: () => ReadingStatus.wantToRead,
-    );
-  }
-
   (String, Color) _statusData(ReadingStatus status) {
     return switch (status) {
-      ReadingStatus.reading => ('Reading', AppTheme.primary),
-      ReadingStatus.finished => ('Finished', AppTheme.success),
-      ReadingStatus.abandoned => ('Abandoned', AppTheme.error),
-      ReadingStatus.wantToRead => ('Want to Read', AppTheme.warning),
+      ReadingStatus.reading => ('En cours', AppTheme.primary),
+      ReadingStatus.finished => ('Terminé', AppTheme.success),
+      ReadingStatus.abandoned => ('Abandonné', AppTheme.error),
+      ReadingStatus.wantToRead => ('À lire', AppTheme.warning),
     };
   }
 }
