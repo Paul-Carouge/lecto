@@ -7,12 +7,12 @@ import 'package:lecto/core/database/database.dart';
 import 'package:lecto/core/theme/app_theme.dart';
 import 'package:lecto/core/database/providers.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
-import 'package:lecto/core/services/google_books_service.dart';
+import 'package:lecto/core/services/openlibrary_service.dart';
 
 /// Search and add books screen.
 ///
 /// Features:
-///   - Search Google Books API
+///   - Search OpenLibrary API
 ///   - Beautiful results list with covers
 ///   - Manual entry option (title, author, pages)
 ///   - Scan ISBN option (text field for now)
@@ -37,7 +37,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
   bool _showIsbnEntry = false;
   String? _error;
 
-  final _googleBooks = GoogleBooksService();
+  final _openLibrary = OpenLibraryService();
 
   Timer? _debounce;
 
@@ -72,7 +72,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
       _error = null;
     });
     try {
-      final results = await _googleBooks.searchBooks(query);
+      final results = await _openLibrary.searchBooks(query);
       setState(() {
         _results = results;
         _isSearching = false;
@@ -181,7 +181,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
 
     setState(() => _isSearching = true);
     try {
-      final book = await _googleBooks.getBookByIsbn(isbn);
+      final book = await _openLibrary.getBookByIsbn(isbn);
       if (book != null) {
         await _addBookFromSearch(book);
       } else {

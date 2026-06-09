@@ -1,7 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:lecto/core/database/database.dart';
 import 'package:lecto/core/database/providers.dart';
-import 'package:lecto/core/services/google_books_service.dart';
+import 'package:lecto/core/services/openlibrary_service.dart';
 
 part 'book_providers.g.dart';
 
@@ -9,7 +9,7 @@ part 'book_providers.g.dart';
 // Singleton service instance
 // ============================================================
 
-final _googleBooksService = GoogleBooksService();
+final _openLibraryService = OpenLibraryService();
 
 // ============================================================
 // All books
@@ -64,7 +64,7 @@ class AddBook extends _$AddBook {
   /// Searches for [query] on Google Books, picks the first result,
   /// creates a database entry, and returns the saved [Book].
   Future<Book> addBook(String query) async {
-    final results = await _googleBooksService.searchBooks(query);
+    final results = await _openLibraryService.searchBooks(query);
     if (results.isEmpty) {
       throw BookProviderException('No books found for "$query"');
     }
@@ -157,7 +157,7 @@ class UpdateBookStatus extends _$UpdateBookStatus {
 @Riverpod(keepAlive: true)
 Future<List<Map<String, dynamic>>> bookSearch(BookSearchRef ref, String query) async {
   if (query.trim().isEmpty) return [];
-  return _googleBooksService.searchBooks(query);
+  return _openLibraryService.searchBooks(query);
 }
 
 // ============================================================

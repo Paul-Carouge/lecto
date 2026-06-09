@@ -27,7 +27,7 @@ final recommendationsProvider = FutureProvider<List<Recommendation>>.internal(
 // ignore: unused_element
 typedef RecommendationsRef = FutureProviderRef<List<Recommendation>>;
 String _$recommendationEngineHash() =>
-    r'fbe665bf684d32756f2d4fa5e6e91832909dea87';
+    r'005454e9536cbef31575845e34e5ca58a1f9b7ad';
 
 /// Generates book recommendations by analyzing the user's finished books
 /// (genres and authors) and fetching similar books via the Google Books API.
