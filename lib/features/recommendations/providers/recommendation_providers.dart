@@ -4,7 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:lecto/core/database/database.dart';
 import 'package:lecto/core/database/providers.dart';
-import 'package:lecto/core/services/openlibrary_service.dart';
+import 'package:lecto/core/services/book_search_service.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
 
 part 'recommendation_providers.g.dart';
@@ -13,7 +13,7 @@ part 'recommendation_providers.g.dart';
 // Service instances
 // ============================================================
 
-final _openLibraryService = OpenLibraryService();
+final _bookSearchService = BookSearchService();
 final _uuid = const Uuid();
 
 // ============================================================
@@ -111,7 +111,7 @@ class RecommendationEngine extends _$RecommendationEngine {
     // Fetch similar books by genre
     for (final entry in topGenres.take(3)) {
       try {
-        final results = await _openLibraryService.getSimilarBooks(entry.key);
+        final results = await _bookSearchService.getSimilarBooks(entry.key);
         for (final result in results) {
           final title = (result['title'] as String?)?.trim().toLowerCase();
           if (title == null || title.isEmpty) continue;
@@ -135,7 +135,7 @@ class RecommendationEngine extends _$RecommendationEngine {
     // Fetch similar books by author
     for (final entry in topAuthors.take(3)) {
       try {
-        final results = await _openLibraryService.searchBooks('inauthor:"${entry.key}"');
+        final results = await _bookSearchService.searchBooks('inauthor:"${entry.key}"');
         for (final result in results) {
           final title = (result['title'] as String?)?.trim().toLowerCase();
           if (title == null || title.isEmpty) continue;
@@ -203,7 +203,7 @@ class RecommendationEngine extends _$RecommendationEngine {
 
     for (final genre in popularGenres) {
       try {
-        final results = await _openLibraryService.getSimilarBooks(genre);
+        final results = await _bookSearchService.getSimilarBooks(genre);
         for (final result in results) {
           final title = (result['title'] as String?)?.trim().toLowerCase();
           if (title == null || title.isEmpty) continue;

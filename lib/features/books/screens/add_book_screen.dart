@@ -7,7 +7,7 @@ import 'package:lecto/core/database/database.dart';
 import 'package:lecto/core/theme/app_theme.dart';
 import 'package:lecto/core/database/providers.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
-import 'package:lecto/core/services/openlibrary_service.dart';
+import 'package:lecto/core/services/book_search_service.dart';
 
 /// Search and add books screen.
 ///
@@ -37,7 +37,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
   bool _showIsbnEntry = false;
   String? _error;
 
-  final _openLibrary = OpenLibraryService();
+  final _bookSearch = BookSearchService();
 
   Timer? _debounce;
 
@@ -72,7 +72,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
       _error = null;
     });
     try {
-      final results = await _openLibrary.searchBooks(query);
+      final results = await _bookSearch.searchBooks(query);
       setState(() {
         _results = results;
         _isSearching = false;
@@ -181,7 +181,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
 
     setState(() => _isSearching = true);
     try {
-      final book = await _openLibrary.getBookByIsbn(isbn);
+      final book = await _bookSearch.getBookByIsbn(isbn);
       if (book != null) {
         await _addBookFromSearch(book);
       } else {
