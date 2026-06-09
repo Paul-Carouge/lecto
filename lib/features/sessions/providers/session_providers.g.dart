@@ -185,7 +185,7 @@ final recentSessionsProvider = FutureProvider<List<ReadingSession>>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef RecentSessionsRef = FutureProviderRef<List<ReadingSession>>;
-String _$activeSessionHash() => r'b90e5dd7114599dc427439808ad23af43a93a999';
+String _$activeSessionHash() => r'6313c17a5df5a87a63df502a9781b6d0947ef992';
 
 /// Provider for the active reading session.
 ///

@@ -269,6 +269,9 @@ class ReadingGoal {
 class Recommendation {
   final String id;
   final String bookId;
+  final String title;
+  final String author;
+  final String? coverUrl;
   final String recommendationType;
   final double score;
   final DateTime generatedAt;
@@ -277,6 +280,9 @@ class Recommendation {
   Recommendation({
     required this.id,
     required this.bookId,
+    required this.title,
+    required this.author,
+    this.coverUrl,
     required this.recommendationType,
     required this.score,
     DateTime? generatedAt,
@@ -286,6 +292,9 @@ class Recommendation {
   Map<String, dynamic> toMap() => {
         'id': id,
         'book_id': bookId,
+        'title': title,
+        'author': author,
+        'cover_url': coverUrl,
         'recommendation_type': recommendationType,
         'score': score,
         'generated_at': generatedAt.toIso8601String(),
@@ -295,6 +304,9 @@ class Recommendation {
   factory Recommendation.fromMap(Map<String, dynamic> map) => Recommendation(
         id: map['id'] as String,
         bookId: map['book_id'] as String,
+        title: map['title'] as String? ?? 'Titre inconnu',
+        author: map['author'] as String? ?? 'Auteur inconnu',
+        coverUrl: map['cover_url'] as String?,
         recommendationType: map['recommendation_type'] as String,
         score: (map['score'] as num).toDouble(),
         generatedAt: DateTime.parse(map['generated_at'] as String),
@@ -392,12 +404,18 @@ class AppDatabase {
       CREATE TABLE IF NOT EXISTS recommendations (
         id TEXT PRIMARY KEY,
         book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        title TEXT NOT NULL DEFAULT '',
+        author TEXT NOT NULL DEFAULT '',
+        cover_url TEXT,
         recommendation_type TEXT NOT NULL,
         score REAL NOT NULL,
         generated_at TEXT NOT NULL,
         dismissed INTEGER NOT NULL DEFAULT 0
       )
     ''');
+
+    // Migration: add title/author/cover_url columns if they don't exist
+    _migrateRecommendationsTable();
   }
 
   // ============================================================
@@ -706,6 +724,17 @@ class AppDatabase {
       if (book != null) books.add(book);
     }
     return books;
+  }
+
+  /// Migration helper: adds title/author/cover_url columns to existing recommendations table.
+  void _migrateRecommendationsTable() {
+    for (final col in ['title', 'author', 'cover_url']) {
+      try {
+        _db.execute('ALTER TABLE recommendations ADD COLUMN $col TEXT');
+      } catch (_) {
+        // Column already exists — ignore
+      }
+    }
   }
 
   void close() {

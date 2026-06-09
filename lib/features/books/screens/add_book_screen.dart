@@ -6,8 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lecto/core/database/database.dart';
 import 'package:lecto/core/database/providers.dart';
+import 'package:lecto/core/router/app_router.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
 import 'package:lecto/core/services/book_search_service.dart';
+import 'package:lecto/features/stats/providers/stats_providers.dart';
 
 /// Search and add books screen — redesigned for beauty and delight.
 class AddBookScreen extends ConsumerStatefulWidget {
@@ -98,7 +100,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
               .toList() ??
           <String>[];
 
-      await db.addBook(Book(
+      final book = await db.addBook(Book(
         id: '',
         title: bookData['title'] as String? ?? 'Titre inconnu',
         author: bookData['author'] as String? ?? 'Auteur inconnu',
@@ -115,16 +117,81 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
 
       ref.invalidate(allBooksProvider);
       ref.invalidate(booksByStatusProvider);
+      ref.invalidate(bookshelfStatsProvider);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('« ${bookData['title']} » ajouté à votre bibliothèque !'),
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      if (!mounted) return;
+
+      // Show dialog: "Ajouté ! Voulez-vous commencer la lecture ?"
+      final startReading = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
+          title: Row(
+            children: [
+              Icon(Icons.check_circle_rounded,
+                  color: Theme.of(context).colorScheme.primary, size: 28),
+              const SizedBox(width: 10),
+              Text(
+                'Ajouté !',
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            '« ${book.title} » a été ajouté à votre bibliothèque.\n\nVoulez-vous commencer la lecture ?',
+            style: GoogleFonts.inter(fontSize: 15, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Non',
+                  style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w500)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text('Oui',
+                  style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (startReading == true) {
+        // Change status to reading with dateStarted
+        final now = DateTime.now();
+        db.updateBook(book.id, {
+          'status': ReadingStatus.reading.name,
+          'date_started': now.toIso8601String(),
+        });
+        ref.invalidate(allBooksProvider);
+        ref.invalidate(booksByStatusProvider);
+        ref.invalidate(currentBookProvider(book.id));
+        ref.invalidate(bookshelfStatsProvider);
+
+        if (!mounted) return;
+        // Navigate to session screen
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/',
+          (route) => false,
         );
+        Navigator.pushNamed(context, AppRouter.session(book.id));
+      } else {
+        // Just go back
         Navigator.pop(context);
       }
     } catch (e) {
@@ -152,7 +219,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
 
     try {
       final db = ref.read(databaseProvider);
-      await db.addBook(Book(
+      final book = await db.addBook(Book(
         id: '',
         title: title,
         author: author,
@@ -162,16 +229,81 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
 
       ref.invalidate(allBooksProvider);
       ref.invalidate(booksByStatusProvider);
+      ref.invalidate(bookshelfStatsProvider);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('« $title » ajouté à votre bibliothèque !'),
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      if (!mounted) return;
+
+      // Show dialog: "Ajouté ! Voulez-vous commencer la lecture ?"
+      final startReading = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
+          title: Row(
+            children: [
+              Icon(Icons.check_circle_rounded,
+                  color: Theme.of(context).colorScheme.primary, size: 28),
+              const SizedBox(width: 10),
+              Text(
+                'Ajouté !',
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            '« $title » a été ajouté à votre bibliothèque.\n\nVoulez-vous commencer la lecture ?',
+            style: GoogleFonts.inter(fontSize: 15, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Non',
+                  style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w500)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text('Oui',
+                  style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (startReading == true) {
+        // Change status to reading with dateStarted
+        final now = DateTime.now();
+        db.updateBook(book.id, {
+          'status': ReadingStatus.reading.name,
+          'date_started': now.toIso8601String(),
+        });
+        ref.invalidate(allBooksProvider);
+        ref.invalidate(booksByStatusProvider);
+        ref.invalidate(currentBookProvider(book.id));
+        ref.invalidate(bookshelfStatsProvider);
+
+        if (!mounted) return;
+        // Navigate to session screen
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/',
+          (route) => false,
         );
+        Navigator.pushNamed(context, AppRouter.session(book.id));
+      } else {
+        // Just go back
         Navigator.pop(context);
       }
     } catch (e) {

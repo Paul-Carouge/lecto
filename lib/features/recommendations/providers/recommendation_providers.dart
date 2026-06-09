@@ -159,7 +159,7 @@ class RecommendationEngine extends _$RecommendationEngine {
     // Limit to the top 20 recommendations
     final finalCandidates = allCandidates.take(20).toList();
 
-    // Save to database — use Recommendation model directly
+    // Save to database — use Recommendation model with full metadata
     final now = DateTime.now();
     final recsToSave = <Recommendation>[];
 
@@ -173,6 +173,9 @@ class RecommendationEngine extends _$RecommendationEngine {
       recsToSave.add(Recommendation(
         id: id,
         bookId: id, // We'll use the same ID, matching a potential future book entry
+        title: candidate.title,
+        author: candidate.author,
+        coverUrl: candidate.coverUrl,
         recommendationType: candidate.recommendationType,
         score: candidate.score,
         generatedAt: now,
@@ -218,6 +221,9 @@ class RecommendationEngine extends _$RecommendationEngine {
           recsToSave.add(Recommendation(
             id: id,
             bookId: id,
+            title: result['title'] as String? ?? '',
+            author: result['author'] as String? ?? 'Auteur inconnu',
+            coverUrl: result['coverUrl'] as String?,
             recommendationType: 'popular',
             score: 0.7,
             generatedAt: now,

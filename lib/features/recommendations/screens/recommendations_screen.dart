@@ -117,12 +117,13 @@ class RecommendationsScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 10),
                         ...items.map((rec) {
-                          // We lookup the book data... For now, use recommendation metadata
+                          // Use recommendation metadata (title, author, coverUrl)
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: RecommendationCard(
-                              title: 'Book #${rec.bookId.substring(0, 6)}',
-                              author: 'Auteur inconnu',
+                              title: rec.title,
+                              author: rec.author,
+                              coverUrl: rec.coverUrl,
                               recommendationType: rec.recommendationType,
                               score: rec.score,
                               onDismiss: () {

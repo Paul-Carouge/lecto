@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lecto/core/database/database.dart';
+import 'package:lecto/core/database/providers.dart';
 import 'package:lecto/core/router/app_router.dart';
 import 'package:lecto/core/theme/theme_provider.dart';
 import 'package:lecto/core/theme/themes.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
 import 'package:lecto/features/sessions/providers/session_providers.dart';
+import 'package:lecto/features/stats/providers/stats_providers.dart';
 
 /// A beautifully redesigned active reading session screen.
 ///
@@ -161,7 +163,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
       },
     );
 
-    if (result == null || !context.mounted) return;
+    if (result == null || !mounted) return;
 
     final notifier = ref.read(activeSessionProvider.notifier);
 
@@ -169,20 +171,24 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
       // "Oui" — mark book as finished, end session, navigate to wrapped
       HapticFeedback.mediumImpact();
 
-      // Update book status to finished
-      final bookId = book.id;
-      await ref.read(updateBookStatusProvider(bookId, ReadingStatus.finished).notifier).applyUpdate();
+      // Update book status to finished (with dateFinished)
+      final now = DateTime.now();
+      ref.read(databaseProvider).updateBook(book.id, {
+        'status': ReadingStatus.finished.name,
+        'date_finished': now.toIso8601String(),
+      });
 
       // End session (already invalidates bookSessionsProvider + recentSessionsProvider)
       notifier.endSession();
 
-      // Also invalidate home screen providers
+      // Invalidate all related providers
       ref.invalidate(allBooksProvider);
       ref.invalidate(booksByStatusProvider);
+      ref.invalidate(currentBookProvider(book.id));
+      ref.invalidate(bookshelfStatsProvider);
 
       if (mounted) {
         // Navigate to wrapped — pop back and then push wrapped
-        final now = DateTime.now();
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/',
@@ -198,9 +204,10 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
       HapticFeedback.mediumImpact();
       notifier.endSession();
 
-      // Invalidate home screen providers
+      // Invalidate all related providers
       ref.invalidate(allBooksProvider);
       ref.invalidate(booksByStatusProvider);
+      ref.invalidate(bookshelfStatsProvider);
       ref.invalidate(recentSessionsProvider);
 
       if (mounted) {

@@ -11,12 +11,32 @@ import 'package:lecto/core/theme/themes.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
 import 'package:lecto/features/sessions/providers/session_providers.dart';
 import 'package:lecto/features/recommendations/providers/recommendation_providers.dart';
+import 'package:lecto/features/stats/providers/stats_providers.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Invalidate providers after first frame to ensure fresh data
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.invalidate(allBooksProvider);
+        ref.invalidate(booksByStatusProvider);
+        ref.invalidate(recentSessionsProvider);
+        ref.invalidate(bookshelfStatsProvider);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
     final isDark = ref.watch(isDarkModeProvider);
     final readingBooks = ref.watch(booksByStatusProvider(ReadingStatus.reading));

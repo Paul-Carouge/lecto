@@ -16,19 +16,10 @@ const _accent = Color(0xFFE8B84B);
 const _offWhite = Color(0xFFF8F5F0);
 const _offDark = Color(0xFF1C1A18);
 
-/// Palette de couleurs pour les dos de livres, dérivée des teintes chaudes.
-const _spinePalette = [
-  Color(0xFFC85A3E), // terracotta principal
-  Color(0xFFD97A60), // terracotta clair
-  Color(0xFFE8B84B), // or doux
-  Color(0xFFB4432E), // terracotta foncé
-  Color(0xFFD4A574), // ocre
-  Color(0xFF8B5E3C), // brun chaud
-  Color(0xFFC75B39), // brûlé
-  Color(0xFF6B4226), // brun profond
-  Color(0xFFE8A87C), // pêche
-  Color(0xFFA0522D), // sienna
-];
+/// Constantes de dimensions pour les couvertures de livres.
+/// Ratio d'aspect standard pour les couvertures de livres (~2:3).
+const _coverWidth = 70.0;
+const _coverHeight = 105.0;
 
 // ============================================================
 // Couleurs des statuts de lecture
@@ -463,22 +454,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 140,
+              height: _coverHeight + 28,
               child: Row(
                 children: List.generate(
                   4 + sectionIndex,
                   (i) => Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: Container(
-                      width: 34,
-                      height: [120, 100, 140, 90, 110][
-                          (sectionIndex + i) % 5].toDouble(),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.04),
-                      ),
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: _coverWidth,
+                          height: _coverHeight,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(6),
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.06)
+                                : Colors.black.withValues(alpha: 0.04),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: _coverWidth * 0.7,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(3),
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.04)
+                                : Colors.black.withValues(alpha: 0.03),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -709,8 +714,8 @@ class _ShelfSectionState extends State<_ShelfSection> {
           ),
         ),
 
-        // Dos des livres arrangés en rangées
-        _buildSpineRows(),
+        // Couvertures des livres arrangées en rangées
+        _buildCoverRows(),
 
         // Ligne d'étagère
         Container(
@@ -733,14 +738,14 @@ class _ShelfSectionState extends State<_ShelfSection> {
     );
   }
 
-  Widget _buildSpineRows() {
+  Widget _buildCoverRows() {
     final books = widget.books;
     if (books.isEmpty) return const SizedBox.shrink();
 
-    // On dispose les livres en rangées de ~5 pour créer l'effet étagère
+    // On dispose les livres en rangées de ~4 pour créer l'effet étagère
     final rows = <List<Book>>[];
-    for (var i = 0; i < books.length; i += 5) {
-      rows.add(books.sublist(i, min(i + 5, books.length)));
+    for (var i = 0; i < books.length; i += 4) {
+      rows.add(books.sublist(i, min(i + 4, books.length)));
     }
 
     return Column(
@@ -748,8 +753,8 @@ class _ShelfSectionState extends State<_ShelfSection> {
         final rowIndex = entry.key;
         final rowBooks = entry.value;
         return Padding(
-          padding: EdgeInsets.only(top: rowIndex > 0 ? 6 : 0),
-          child: _BookSpineRow(
+          padding: EdgeInsets.only(top: rowIndex > 0 ? 8 : 0),
+          child: _BookCoverRow(
             books: rowBooks,
             rowIndex: rowIndex,
             isDark: widget.isDark,
@@ -761,14 +766,14 @@ class _ShelfSectionState extends State<_ShelfSection> {
 }
 
 // ============================================================
-// _BookSpineRow — une rangée de dos de livres
+// _BookCoverRow — une rangée de couvertures de livres
 // ============================================================
-class _BookSpineRow extends StatelessWidget {
+class _BookCoverRow extends StatelessWidget {
   final List<Book> books;
   final int rowIndex;
   final bool isDark;
 
-  const _BookSpineRow({
+  const _BookCoverRow({
     required this.books,
     required this.rowIndex,
     required this.isDark,
@@ -777,50 +782,42 @@ class _BookSpineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: _rowHeight(books),
+      height: _coverHeight + 24,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: books.asMap().entries.map((entry) {
           final index = entry.key;
           final book = entry.value;
-          return _AnimatedSpine(
+          return _AnimatedCover(
             book: book,
-            globalIndex: rowIndex * 5 + index,
+            globalIndex: rowIndex * 4 + index,
             isDark: isDark,
           );
         }).toList(),
       ),
     );
   }
-
-  double _rowHeight(List<Book> books) {
-    double maxH = 0;
-    for (final book in books) {
-      maxH = max(maxH, _spineHeight(book));
-    }
-    return maxH + 4; // +4 pour un petit padding en haut
-  }
 }
 
 // ============================================================
-// _AnimatedSpine — dos de livre avec animation d'apparition
+// _AnimatedCover — couverture de livre avec animation d'apparition
 // ============================================================
-class _AnimatedSpine extends StatefulWidget {
+class _AnimatedCover extends StatefulWidget {
   final Book book;
   final int globalIndex;
   final bool isDark;
 
-  const _AnimatedSpine({
+  const _AnimatedCover({
     required this.book,
     required this.globalIndex,
     required this.isDark,
   });
 
   @override
-  State<_AnimatedSpine> createState() => _AnimatedSpineState();
+  State<_AnimatedCover> createState() => _AnimatedCoverState();
 }
 
-class _AnimatedSpineState extends State<_AnimatedSpine> {
+class _AnimatedCoverState extends State<_AnimatedCover> {
   double _opacity = 0.0;
   double _translateY = 20.0;
 
@@ -849,7 +846,7 @@ class _AnimatedSpineState extends State<_AnimatedSpine> {
         offset: Offset(0, _translateY / 100),
         duration: Duration(milliseconds: 400 + 50 * widget.globalIndex),
         curve: Curves.easeOutCubic,
-        child: _BookSpine(
+        child: _BookCover(
           book: widget.book,
           isDark: widget.isDark,
           onTap: () => _showBookQuickView(context, widget.book),
@@ -876,14 +873,14 @@ class _AnimatedSpineState extends State<_AnimatedSpine> {
 }
 
 // ============================================================
-// _BookSpine — le dos d'un livre individuel
+// _BookCover — la couverture d'un livre individuel
 // ============================================================
-class _BookSpine extends StatelessWidget {
+class _BookCover extends StatelessWidget {
   final Book book;
   final bool isDark;
   final VoidCallback onTap;
 
-  const _BookSpine({
+  const _BookCover({
     required this.book,
     required this.isDark,
     required this.onTap,
@@ -891,78 +888,85 @@ class _BookSpine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final height = _spineHeight(book);
-    final spineColor = _spineColorFor(book);
-
     return GestureDetector(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Container(
-          width: 34,
-          height: height,
-          decoration: BoxDecoration(
-            color: spineColor,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(3),
-              topRight: Radius.circular(3),
-              bottomLeft: Radius.circular(2),
-              bottomRight: Radius.circular(2),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: spineColor.withValues(alpha: 0.3),
-                blurRadius: 4,
-                offset: const Offset(1, 2),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(3),
-              topRight: Radius.circular(3),
-              bottomLeft: Radius.circular(2),
-              bottomRight: Radius.circular(2),
-            ),
-            child: Column(
-              children: [
-                // Bande décorative en haut du dos
-                Container(
-                  height: 6,
-                  color: spineColor.withValues(alpha: 0.3),
-                ),
-                // Titre vertical
-                Expanded(
-                  child: RotatedBox(
-                    quarterTurns: 3,
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            book.title,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: _textColorFor(spineColor),
-                              letterSpacing: 0.5,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ),
+        padding: const EdgeInsets.only(right: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Couverture
+            Container(
+              width: _coverWidth,
+              height: _coverHeight,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
                   ),
-                ),
-                // Petite bande décorative en bas
-                Container(
-                  height: 4,
-                  color: spineColor.withValues(alpha: 0.2),
-                ),
-              ],
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: book.coverUrl != null && book.coverUrl!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: book.coverUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) => _coverPlaceholder(),
+                        errorWidget: (_, _, _) => _coverPlaceholder(),
+                      )
+                    : _coverPlaceholder(),
+              ),
             ),
+            const SizedBox(height: 6),
+            // Titre sous la couverture
+            SizedBox(
+              width: _coverWidth + 6,
+              child: Text(
+                book.title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.7)
+                      : const Color(0xFF1C1A18).withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _coverPlaceholder() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _primary,
+            _primary.withValues(alpha: 0.7),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          book.title.isNotEmpty
+              ? book.title[0].toUpperCase()
+              : '?',
+          style: GoogleFonts.outfit(
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            color: Colors.white.withValues(alpha: 0.9),
           ),
         ),
       ),
@@ -1352,33 +1356,3 @@ class _EmptyShelfPainter extends CustomPainter {
 // ============================================================
 // Utilitaires
 // ============================================================
-
-/// Calcule la hauteur d'un dos de livre en fonction du nombre de pages.
-double _spineHeight(Book book) {
-  final base = 80.0;
-  if (book.pageCount == null || book.pageCount! <= 0) {
-    // Variation aléatoire basée sur le hash du titre
-    final seed = book.title.hashCode.abs() % 40;
-    return base + seed;
-  }
-  // Entre 80 et 160 selon le nombre de pages
-  final h = base + (book.pageCount! / 1000.0 * 80).clamp(0, 80);
-  return h;
-}
-
-/// Détermine la couleur du dos en fonction des catégories du livre.
-Color _spineColorFor(Book book) {
-  if (book.categories.isEmpty) {
-    return _primary;
-  }
-  // Utilise la première catégorie pour déterminer la couleur
-  final hash = book.categories.first.hashCode.abs();
-  return _spinePalette[hash % _spinePalette.length];
-}
-
-/// Choisit la couleur du texte (blanc ou noir) selon la luminosité du fond.
-Color _textColorFor(Color bg) {
-  // Using luminance formula: 0.299*R + 0.587*G + 0.114*B
-  final l = 0.299 * bg.r * 255 + 0.587 * bg.g * 255 + 0.114 * bg.b * 255;
-  return l > 150 ? const Color(0xFF1C1A18) : Colors.white;
-}
