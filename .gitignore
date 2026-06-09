@@ -47,3 +47,4 @@ app.*.map.json
 
 # Generated code - committed for build reproducibility
 !*.g.dart
+*.apk
