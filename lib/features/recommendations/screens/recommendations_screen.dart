@@ -24,7 +24,7 @@ class RecommendationsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Recommendations',
+          'Recommandations',
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
         ),
         actions: [
@@ -33,7 +33,7 @@ class RecommendationsScreen extends ConsumerWidget {
             onPressed: () {
               ref.read(recommendationEngineProvider.notifier).generate();
             },
-            tooltip: 'Refresh recommendations',
+            tooltip: 'Actualiser les recommandations',
           ),
         ],
       ),
@@ -45,9 +45,9 @@ class RecommendationsScreen extends ConsumerWidget {
             return Center(
               child: EmptyState(
                 emoji: '📖',
-                title: 'No recommendations yet',
-                subtitle: 'Add and finish some books first!',
-                actionLabel: 'Generate Recommendations',
+                title: 'Aucune recommandation',
+                subtitle: 'Ajoutez et terminez d\'abord des livres !',
+                actionLabel: 'Générer des recommandations',
                 onAction: () {
                   ref.read(recommendationEngineProvider.notifier).generate();
                 },
@@ -62,9 +62,9 @@ class RecommendationsScreen extends ConsumerWidget {
           }
 
           final typeLabels = {
-            'genre_similar': 'Because You Read Similar Genres',
-            'author_similar': 'By Authors You Know',
-            'popular': 'Popular in Your Genres',
+            'genre_similar': 'Basé sur vos lectures similaires',
+            'author_similar': 'Par des auteurs que vous connaissez',
+            'popular': 'Populaire dans vos genres',
           };
 
           final typeEmojis = {
@@ -81,7 +81,7 @@ class RecommendationsScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 80),
               children: [
                 Text(
-                  'Discover your next read',
+                  'Découvrez votre prochaine lecture',
                   style: GoogleFonts.outfit(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -93,7 +93,7 @@ class RecommendationsScreen extends ConsumerWidget {
                 ...grouped.entries.map((entry) {
                   final type = entry.key;
                   final items = entry.value;
-                  final label = typeLabels[type] ?? 'Recommendations';
+                  final label = typeLabels[type] ?? 'Recommandations';
                   final emoji = typeEmojis[type] ?? '📖';
 
                   return Padding(
@@ -122,7 +122,7 @@ class RecommendationsScreen extends ConsumerWidget {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: RecommendationCard(
                               title: 'Book #${rec.bookId.substring(0, 6)}',
-                              author: 'Unknown Author',
+                              author: 'Auteur inconnu',
                               recommendationType: rec.recommendationType,
                               score: rec.score,
                               onDismiss: () {

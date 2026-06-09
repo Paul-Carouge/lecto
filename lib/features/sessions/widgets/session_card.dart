@@ -147,7 +147,7 @@ class SessionCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'Today',
+                        "Aujourd'hui",
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w600,

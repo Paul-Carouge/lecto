@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:lecto/core/theme/app_theme.dart';
+import 'package:lecto/core/theme/themes.dart';
+import 'package:lecto/core/theme/theme_provider.dart';
 import 'package:lecto/core/database/providers.dart';
-import 'package:lecto/features/settings/providers/settings_providers.dart';
-import 'package:lecto/shared/widgets/empty_state.dart';
+import 'package:lecto/features/updater/providers/updater_providers.dart';
+import 'package:lecto/features/updater/widgets/update_dialog.dart';
 
-/// App settings screen.
-///
-/// Features:
-///   - Dark mode toggle
-///   - About section (version)
-///   - Data management (export, import, reset)
-///   - App info
+/// Paramètres de l'application — thème, mises à jour, à propos.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -48,82 +44,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = ref.watch(isDarkModeProvider);
-    final isDarkBg = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentThemeOption = ref.watch(themeOptionProvider);
+    final isDarkMode = ref.watch(isDarkModeProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Settings',
+          'Paramètres',
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
         children: [
-          // Appearance section
-          _SectionTitle(title: 'Appearance'),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              color: isDarkBg ? AppTheme.surfaceCard : Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ListTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  color: AppTheme.primary.withValues(alpha: 0.1),
-                ),
-                child: Icon(
-                  isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                  color: AppTheme.primary,
-                  size: 22,
-                ),
-              ),
-              title: Text(
-                'Dark Mode',
-                style: GoogleFonts.outfit(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Text(
-                isDark ? 'Dark theme is active' : 'Light theme is active',
-                style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
-              ),
-              trailing: Switch(
-                value: isDark,
-                onChanged: (_) {
-                  ref.read(themeModeSettingProvider.notifier).toggle();
-                },
-                activeThumbColor: AppTheme.primary,
-              ),
-            ),
-          ),
+          // ========== Section Thème ==========
+          _SectionHeader(title: 'Thème'),
+          const SizedBox(height: 10),
 
-          const SizedBox(height: 28),
-
-          // Data section
-          _SectionTitle(title: 'Data Management'),
-          const SizedBox(height: 8),
+          // Dark mode card
           Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              color: isDarkBg ? AppTheme.surfaceCard : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              color: colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -131,35 +78,94 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             child: Column(
               children: [
-                _SettingsTile(
-                  icon: Icons.file_download_rounded,
-                  title: 'Export Data',
-                  subtitle: 'Save your reading data as JSON',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Export coming soon!')),
-                    );
-                  },
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: colorScheme.primary.withValues(alpha: 0.12),
+                        ),
+                        child: Icon(
+                          isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                          color: colorScheme.primary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Mode sombre',
+                              style: GoogleFonts.outfit(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              isDarkMode ? 'Thème sombre activé' : 'Thème clair activé',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: colorScheme.onSurface.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: isDarkMode,
+                        onChanged: (value) {
+                          HapticFeedback.lightImpact();
+                          ref.read(isDarkModeProvider.notifier).setDarkMode(value);
+                        },
+                        activeColor: colorScheme.primary,
+                      ),
+                    ],
+                  ),
                 ),
-                const Divider(height: 1, indent: 64, endIndent: 16),
-                _SettingsTile(
-                  icon: Icons.file_upload_rounded,
-                  title: 'Import Data',
-                  subtitle: 'Restore data from a backup file',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Import coming soon!')),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 64, endIndent: 16),
-                _SettingsTile(
-                  icon: Icons.delete_forever_rounded,
-                  title: 'Reset All Data',
-                  subtitle: 'Clear all books, sessions, and goals',
-                  onTap: () => _confirmReset(context),
-                  iconColor: AppTheme.error,
-                  titleColor: AppTheme.error,
+
+                const Divider(height: 1, indent: 72, endIndent: 16),
+
+                // Theme picker
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Palette de couleurs',
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: AppThemeOption.values.map((option) {
+                          final palette = ThemePalette.fromOption(option);
+                          final isSelected = option == currentThemeOption;
+                          return _ThemeCircle(
+                            option: option,
+                            palette: palette,
+                            isSelected: isSelected,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              ref.read(themeOptionProvider.notifier).setTheme(option);
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -167,16 +173,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const SizedBox(height: 28),
 
-          // About section
-          _SectionTitle(title: 'About'),
-          const SizedBox(height: 8),
+          // ========== Section Mise à jour ==========
+          _SectionHeader(title: 'Mise à jour'),
+          const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              color: isDarkBg ? AppTheme.surfaceCard : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              color: colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: _SettingsTile(
+              icon: Icons.system_update_rounded,
+              title: 'Vérifier les mises à jour',
+              subtitle: 'Rechercher une nouvelle version de Lecto',
+              onTap: () => _checkForUpdate(context),
+              colorScheme: colorScheme,
+            ),
+          ),
+
+          const SizedBox(height: 28),
+
+          // ========== Section À propos ==========
+          _SectionHeader(title: 'À propos'),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: colorScheme.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -189,64 +221,178 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Version',
                   subtitle: '$_appVersion ($_appBuildNumber)',
                   onTap: null,
+                  colorScheme: colorScheme,
                 ),
-                const Divider(height: 1, indent: 64, endIndent: 16),
+                const Divider(height: 1, indent: 72, endIndent: 16),
                 _SettingsTile(
                   icon: Icons.favorite_outline_rounded,
                   title: 'Lecto',
-                  subtitle: 'Your personal reading tracker',
+                  subtitle: 'Votre carnet de lecture personnel',
                   onTap: null,
+                  colorScheme: colorScheme,
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 40),
+          const SizedBox(height: 28),
+
+          // ========== Section Données ==========
+          _SectionHeader(title: 'Données'),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: colorScheme.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _SettingsTile(
+                  icon: Icons.file_download_rounded,
+                  title: 'Exporter les données',
+                  subtitle: 'Sauvegarder vos données en JSON',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Exportation bientôt disponible !'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  colorScheme: colorScheme,
+                ),
+                const Divider(height: 1, indent: 72, endIndent: 16),
+                _SettingsTile(
+                  icon: Icons.file_upload_rounded,
+                  title: 'Importer des données',
+                  subtitle: 'Restaurer depuis un fichier de sauvegarde',
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Importation bientôt disponible !'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  colorScheme: colorScheme,
+                ),
+                const Divider(height: 1, indent: 72, endIndent: 16),
+                _SettingsTile(
+                  icon: Icons.delete_forever_rounded,
+                  title: 'Réinitialiser toutes les données',
+                  subtitle: 'Effacer livres, sessions et objectifs',
+                  onTap: () => _confirmReset(context),
+                  iconColor: colorScheme.error,
+                  titleColor: colorScheme.error,
+                  colorScheme: colorScheme,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // Footer
+          Center(
+            child: Text(
+              'Lecto v$_appVersion',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
+  Future<void> _checkForUpdate(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    final updaterService = ref.read(updaterServiceProvider);
+    updaterService.resetSessionCache();
+    try {
+      final info = await updaterService.checkForUpdate();
+      if (!context.mounted) return;
+      if (info != null && info.isAvailable) {
+        showUpdateDialog(context, info: info);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vous avez déjà la dernière version !'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de vérifier les mises à jour.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   void _confirmReset(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'Reset All Data?',
+          'Réinitialiser toutes les données ?',
           style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         ),
-        content: const Text(
-          'This will permanently delete all books, reading sessions, goals, and recommendations. This action cannot be undone.',
+        content: Text(
+          'Cette action supprimera définitivement tous les livres, sessions de lecture, objectifs et recommandations. Cette opération est irréversible.',
+          style: GoogleFonts.inter(fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(
+              'Annuler',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
+              HapticFeedback.lightImpact();
               Navigator.pop(ctx);
-              // Reset database by deleting all records
               final db = ref.read(databaseProvider);
-              // Delete all books and sessions
               for (final book in db.getAllBooks()) {
                 db.deleteBook(book.id);
               }
-              // Delete all sessions
               for (final session in db.getAllSessions()) {
                 db.deleteSession(session.id);
               }
-              // Clear recommendations
               db.clearRecommendations();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('All data has been reset'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Toutes les données ont été réinitialisées'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
-            child: const Text('Reset'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.error,
+              foregroundColor: colorScheme.onError,
+            ),
+            child: Text(
+              'Réinitialiser',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -254,26 +400,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
+// ============================================================
+// Section header widget
+// ============================================================
+
+class _SectionHeader extends StatelessWidget {
   final String title;
 
-  const _SectionTitle({required this.title});
+  const _SectionHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: Text(
         title,
         style: GoogleFonts.outfit(
           fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppTheme.textSecondary,
+          fontWeight: FontWeight.w700,
+          color: colorScheme.primary,
+          letterSpacing: 0.5,
         ),
       ),
     );
   }
 }
+
+// ============================================================
+// Settings tile widget
+// ============================================================
 
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
@@ -282,6 +438,7 @@ class _SettingsTile extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? iconColor;
   final Color? titleColor;
+  final ColorScheme colorScheme;
 
   const _SettingsTile({
     required this.icon,
@@ -290,38 +447,116 @@ class _SettingsTile extends StatelessWidget {
     this.onTap,
     this.iconColor,
     this.titleColor,
+    required this.colorScheme,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveIconColor = iconColor ?? colorScheme.primary;
+    final effectiveTitleColor = titleColor ?? colorScheme.onSurface;
+
     return ListTile(
       leading: Container(
-        width: 40,
-        height: 40,
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: (iconColor ?? AppTheme.primary).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          color: effectiveIconColor.withValues(alpha: 0.12),
         ),
-        child: Icon(icon, color: iconColor ?? AppTheme.primary, size: 22),
+        child: Icon(icon, color: effectiveIconColor, size: 22),
       ),
       title: Text(
         title,
         style: GoogleFonts.outfit(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: titleColor ?? Theme.of(context).colorScheme.onSurface,
+          color: effectiveTitleColor,
         ),
       ),
       subtitle: Text(
         subtitle,
-        style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          color: colorScheme.onSurface.withValues(alpha: 0.5),
+        ),
       ),
       trailing: onTap != null
-          ? Icon(Icons.chevron_right_rounded, color: AppTheme.textSecondary, size: 20)
+          ? Icon(Icons.chevron_right_rounded, color: colorScheme.onSurface.withValues(alpha: 0.3), size: 20)
           : null,
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    );
+  }
+}
+
+// ============================================================
+// Theme picker circle widget
+// ============================================================
+
+class _ThemeCircle extends StatelessWidget {
+  final AppThemeOption option;
+  final ThemePalette palette;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ThemeCircle({
+    required this.option,
+    required this.palette,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: palette.primary,
+                border: Border.all(
+                  color: isSelected ? colorScheme.primary : Colors.transparent,
+                  width: isSelected ? 3 : 0,
+                ),
+                boxShadow: [
+                  if (isSelected)
+                    BoxShadow(
+                      color: palette.primary.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                ],
+              ),
+              child: isSelected
+                  ? Icon(Icons.check_rounded, color: Colors.white, size: 22)
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              palette.label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected
+                    ? colorScheme.primary
+                    : colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

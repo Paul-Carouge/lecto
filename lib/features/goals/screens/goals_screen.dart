@@ -69,7 +69,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Reading Goals',
+          'Objectifs de lecture',
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
         ),
       ),
@@ -81,9 +81,9 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
             return Center(
               child: EmptyState(
                 emoji: '🎯',
-                title: 'No goals set yet',
-                subtitle: 'Set a reading goal to stay motivated!',
-                actionLabel: 'Set a Goal',
+                title: 'Aucun objectif défini',
+                subtitle: 'Fixez un objectif de lecture pour rester motivé !',
+                actionLabel: 'Fixer un objectif',
                 onAction: () => setState(() => _showAddDialog = true),
               ),
             );
@@ -126,7 +126,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                     child: OutlinedButton.icon(
                       onPressed: () => setState(() => _showAddDialog = true),
                       icon: const Icon(Icons.add_rounded, size: 20),
-                      label: const Text('Add Goal'),
+                      label: const Text('Ajouter un objectif'),
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -172,7 +172,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
           Row(
             children: [
               Text(
-                'New Goal',
+                'Nouvel objectif',
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -189,23 +189,23 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
           const SizedBox(height: 16),
           _GoalOptionTile(
             icon: Icons.menu_book_rounded,
-            title: 'Yearly Books Target',
-            subtitle: 'Set how many books you want to read this year',
-            onTap: () => _showGoalInput('books', 'Yearly Books Goal', year: year),
+            title: 'Objectif annuel de livres',
+            subtitle: 'Définissez le nombre de livres à lire cette année',
+            onTap: () => _showGoalInput('books', 'Objectif annuel de livres', year: year),
           ),
           const Divider(height: 24),
           _GoalOptionTile(
             icon: Icons.auto_stories_rounded,
-            title: 'Monthly Pages Target',
-            subtitle: 'Set a pages-per-month goal',
-            onTap: () => _showGoalInput('pages', 'Monthly Pages Goal', year: year, month: month),
+            title: 'Objectif mensuel de pages',
+            subtitle: 'Définissez un objectif de pages par mois',
+            onTap: () => _showGoalInput('pages', 'Objectif mensuel de pages', year: year, month: month),
           ),
           const Divider(height: 24),
           _GoalOptionTile(
             icon: Icons.schedule_rounded,
-            title: 'Yearly Minutes Target',
-            subtitle: 'Set total reading minutes for the year',
-            onTap: () => _showGoalInput('minutes', 'Yearly Minutes Goal', year: year),
+            title: 'Objectif annuel de minutes',
+            subtitle: 'Définissez le nombre total de minutes de lecture pour l\'année',
+            onTap: () => _showGoalInput('minutes', 'Objectif annuel de minutes', year: year),
           ),
         ],
       ),
@@ -226,9 +226,9 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
           keyboardType: TextInputType.number,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: 'Enter target value...',
+            hintText: 'Entrez la valeur cible...',
             suffixText: type == 'books'
-                ? 'books'
+                ? 'livres'
                 : type == 'pages'
                     ? 'pages'
                     : 'minutes',
@@ -237,7 +237,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: const Text('Annuler'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -252,7 +252,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                   }).notifier).setGoal();
               setState(() => _showAddDialog = false);
             },
-            child: const Text('Set Goal'),
+            child: const Text('Définir'),
           ),
         ],
       ),
@@ -287,15 +287,15 @@ class _GoalCard extends StatelessWidget {
         ? (goal.progress / goal.target).clamp(0.0, 1.0)
         : 0.0;
     final (icon, label, unit) = switch (goal.type) {
-      'books' => (Icons.menu_book_rounded, 'Books', ' books'),
+      'books' => (Icons.menu_book_rounded, 'Livres', ' livres'),
       'pages' => (Icons.auto_stories_rounded, 'Pages', ' pages'),
       'minutes' => (Icons.schedule_rounded, 'Minutes', ' min'),
-      _ => (Icons.flag_rounded, 'Goal', ''),
+      _ => (Icons.flag_rounded, 'Objectif', ''),
     };
 
     final goalName = goal.month != null
-        ? 'Monthly ${goal.type}'
-        : 'Yearly ${goal.type}';
+        ? 'Mensuel ${goal.type}'
+        : 'Annuel ${goal.type}';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -371,7 +371,7 @@ class _GoalCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '${goal.progress} of ${goal.target}$unit',
+                  '${goal.progress} / ${goal.target}$unit',
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     color: AppTheme.textSecondary,
@@ -384,7 +384,7 @@ class _GoalCard extends StatelessWidget {
                       Icon(Icons.celebration_rounded, size: 16, color: AppTheme.warning),
                       const SizedBox(width: 4),
                       Text(
-                        'Goal completed! 🎉',
+                        'Objectif atteint ! 🎉',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,

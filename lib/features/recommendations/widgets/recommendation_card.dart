@@ -32,10 +32,10 @@ class RecommendationCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final reason = switch (recommendationType) {
-      'genre_similar' => 'Because you like this genre',
-      'author_similar' => 'By an author you read',
-      'popular' => 'Popular in your genres',
-      _ => 'Recommended for you',
+      'genre_similar' => 'Parce que vous aimez ce genre',
+      'author_similar' => 'Par un auteur que vous lisez',
+      'popular' => 'Populaire dans vos genres',
+      _ => 'Recommandé pour vous',
     };
 
     return GestureDetector(

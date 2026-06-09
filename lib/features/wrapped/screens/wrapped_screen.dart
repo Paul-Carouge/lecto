@@ -71,7 +71,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Monthly Recap',
+          'Mon bilan',
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
         ),
         actions: [
@@ -123,8 +123,8 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
                 if (wrapped.sessionCount == 0) {
                   return EmptyState(
                     emoji: '📊',
-                    title: 'No reading activity',
-                    subtitle: 'Read some books this month to see your recap!',
+                    title: 'Aucune activité',
+                    subtitle: 'Lisez des livres ce mois-ci pour voir votre bilan !',
                   );
                 }
 
@@ -142,7 +142,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
                         children: [
                           Expanded(
                             child: StatCard(
-                              label: 'Books Finished',
+                              label: 'Livres terminés',
                               value: wrapped.booksFinished.toString(),
                               icon: Icons.check_circle_rounded,
                               color: AppTheme.primary,
@@ -151,7 +151,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: StatCard(
-                              label: 'Books Started',
+                              label: 'Livres commencés',
                               value: wrapped.booksStarted.toString(),
                               icon: Icons.play_circle_rounded,
                               color: AppTheme.accent,
@@ -164,7 +164,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
                         children: [
                           Expanded(
                             child: StatCard(
-                              label: 'Pages Read',
+                              label: 'Pages lues',
                               value: Formatters.formatCompactNumber(wrapped.totalPages),
                               icon: Icons.auto_stories_rounded,
                               color: AppTheme.success,
@@ -173,7 +173,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: StatCard(
-                              label: 'Reading Time',
+                              label: 'Temps de lecture',
                               value: Formatters.formatDuration(wrapped.totalDuration),
                               icon: Icons.schedule_rounded,
                               color: AppTheme.warning,
@@ -186,24 +186,24 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
 
                       // Session stats
                       _buildInfoCard(
-                        'Sessions & Habits',
+                        'Sessions & habitudes',
                         Icons.timer_rounded,
                         [
                           _InfoRow('Sessions', '${wrapped.sessionCount}'),
                           _InfoRow(
-                            'Avg Session',
+                            'Moy. séance',
                             Formatters.formatDuration(wrapped.averageSessionDuration),
                           ),
                           _InfoRow(
-                            'Avg Pages/Session',
+                            'Moy. pages/séance',
                             wrapped.averagePagesPerSession.toStringAsFixed(1),
                           ),
                           _InfoRow(
-                            'Longest Session',
+                            'Session la + longue',
                             Formatters.formatDuration(wrapped.longestSession),
                           ),
                           _InfoRow(
-                            'Most Pages',
+                            'Max pages',
                             '${wrapped.mostPagesInSession} pages',
                           ),
                         ],
@@ -214,10 +214,10 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
                       // Genre & favorites
                       if (wrapped.topGenre != null)
                         _buildInfoCard(
-                          'Top Genre',
+                          'Genre préféré',
                           Icons.category_rounded,
                           [
-                            _InfoRow('Most Read Genre', wrapped.topGenre!),
+                            _InfoRow('Genre le plus lu', wrapped.topGenre!),
                           ],
                           accentColor: AppTheme.accent,
                         ),
@@ -296,7 +296,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
       child: Column(
         children: [
           Text(
-            'Your Reading Recap',
+            'Votre bilan du mois',
             style: GoogleFonts.outfit(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -327,7 +327,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
               ),
               _HeroStat(
                 value: Formatters.formatDuration(wrapped.totalDuration),
-                label: 'Time',
+                label: 'Temps',
               ),
               Container(
                 width: 1,
@@ -336,7 +336,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
               ),
               _HeroStat(
                 value: '${wrapped.sessionCount}',
-                label: 'Sessions',
+                label: 'Séances',
               ),
             ],
           ),

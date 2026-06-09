@@ -31,7 +31,7 @@ class StatsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Statistics',
+          'Statistiques',
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
         ),
       ),
@@ -45,7 +45,7 @@ class StatsScreen extends ConsumerWidget {
             children: [
               // Summary cards
               Text(
-                'Overview',
+                'Aperçu',
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -57,7 +57,7 @@ class StatsScreen extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: StatCard(
-                      label: 'Books Read',
+                      label: 'Livres lus',
                       value: stats.totalBooks.toString(),
                       icon: Icons.check_circle_rounded,
                       color: AppTheme.primary,
@@ -66,7 +66,7 @@ class StatsScreen extends ConsumerWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: StatCard(
-                      label: 'Pages Read',
+                      label: 'Pages lues',
                       value: Formatters.formatCompactNumber(stats.totalPages),
                       icon: Icons.auto_stories_rounded,
                       color: AppTheme.accent,
@@ -79,7 +79,7 @@ class StatsScreen extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: StatCard(
-                      label: 'Reading Time',
+                      label: 'Temps de lecture',
                       value: Formatters.formatDuration(stats.totalTime),
                       icon: Icons.schedule_rounded,
                       color: AppTheme.success,
@@ -101,7 +101,7 @@ class StatsScreen extends ConsumerWidget {
 
               // Monthly pages chart
               Text(
-                'Pages per Month',
+                'Pages par mois',
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -125,7 +125,7 @@ class StatsScreen extends ConsumerWidget {
 
               // Monthly duration chart
               Text(
-                'Minutes per Month',
+                'Minutes par mois',
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -167,8 +167,8 @@ class StatsScreen extends ConsumerWidget {
                   if (genres.isEmpty) {
                     return const EmptyState(
                       emoji: '🏷️',
-                      title: 'No genres yet',
-                      subtitle: 'Genres will appear as you finish books.',
+                      title: 'Aucun genre',
+                      subtitle: 'Les genres apparaîtront lorsque vous terminerez des livres.',
                     );
                   }
                   return Column(

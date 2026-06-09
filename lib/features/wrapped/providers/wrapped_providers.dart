@@ -80,7 +80,7 @@ Future<MonthlyWrapped> monthlyWrapped(MonthlyWrappedRef ref, int month, int year
       s.startTime.year == year && s.startTime.month == month).toList();
 
   if (monthlySessions.isEmpty) {
-    return MonthlyWrapped(month: month, year: year, insight: 'No reading activity this month. Time to pick up a book!');
+    return MonthlyWrapped(month: month, year: year, insight: 'Aucune activité ce mois-ci.');
   }
 
   // Compute stats

@@ -62,7 +62,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
       data: (book) {
         if (book == null) {
           return const Scaffold(
-            body: Center(child: Text('Book not found')),
+            body: Center(child: Text('Livre introuvable')),
           );
         }
 
@@ -148,7 +148,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
                     Column(
                       children: [
                         Text(
-                          'Ready to read?',
+                          'Prêt à lire ?',
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             color: AppTheme.textSecondary,
@@ -183,7 +183,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
                               },
                               icon: const Icon(Icons.stop_rounded, size: 20),
                               label: Text(
-                                'Stop',
+                                'Arrêter',
                                 style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
                               ),
                               style: OutlinedButton.styleFrom(
@@ -215,7 +215,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
                                 size: 22,
                               ),
                               label: Text(
-                                sessionState.isRunning ? 'Pause' : 'Resume',
+                                sessionState.isRunning ? 'Pause' : 'Reprendre',
                                 style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
                               ),
                               style: ElevatedButton.styleFrom(
@@ -310,7 +310,7 @@ class _PageTracker extends StatelessWidget {
         children: [
           Text(
             totalPages > 0
-                ? 'Page $page of $totalPages'
+                ? 'Page $page / $totalPages'
                 : 'Page $page',
             style: GoogleFonts.outfit(
               fontSize: 18,
@@ -428,7 +428,7 @@ class _StartPageInput extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'What page are you on?',
+            'À quelle page êtes-vous ?',
             style: GoogleFonts.outfit(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -455,13 +455,13 @@ class _StartPageInput extends StatelessWidget {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: onSubmit,
-            child: const Text('Start Reading'),
+            child: const Text('Commencer la lecture'),
           ),
           const SizedBox(height: 8),
           TextButton(
             onPressed: onSkip,
             child: Text(
-              'Skip',
+              'Passer',
               style: GoogleFonts.inter(color: AppTheme.textSecondary),
             ),
           ),

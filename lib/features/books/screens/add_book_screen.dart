@@ -118,7 +118,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('"${bookData['title']}" added to your library!'),
+            content: Text('"${bookData['title']}" ajouté à votre bibliothèque !'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -129,7 +129,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to add book: $e'),
+            content: Text('Échec de l\'ajout du livre : $e'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -142,7 +142,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
     final author = _authorController.text.trim();
     if (title.isEmpty || author.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Title and author are required')),
+        const SnackBar(content: Text("Le titre et l'auteur sont requis")),
       );
       return;
     }
@@ -163,7 +163,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('"$title" added to your library!'),
+            content: Text('"$title" ajouté à votre bibliothèque !'),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -173,7 +173,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
+          SnackBar(content: Text('Échec : $e')),
         );
       }
     }
@@ -191,14 +191,14 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No book found for this ISBN')),
+            const SnackBar(content: Text('Aucun livre trouvé pour cet ISBN')),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Erreur : $e')),
         );
       }
     } finally {
@@ -213,7 +213,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Add a Book',
+          'Ajouter un livre',
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
         ),
       ),
@@ -224,7 +224,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
           children: [
             // Search Google Books
             Text(
-              'Search Google Books',
+              'Rechercher un livre',
               style: GoogleFonts.outfit(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -239,7 +239,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
                 onChanged: _onSearchChanged,
                 style: GoogleFonts.inter(fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Search by title or author...',
+                  hintText: 'Rechercher un livre ou un auteur...',
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
@@ -302,7 +302,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
                     },
                     icon: const Icon(Icons.edit_note_rounded, size: 18),
                     label: Text(
-                      _showManualEntry ? 'Hide Manual Entry' : 'Manual Entry',
+                      _showManualEntry ? 'Masquer la saisie' : 'Saisie manuelle',
                       style: GoogleFonts.inter(fontSize: 13),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -323,7 +323,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
                     },
                     icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
                     label: Text(
-                      _showIsbnEntry ? 'Hide ISBN' : 'Scan ISBN',
+                      _showIsbnEntry ? 'Masquer l\'ISBN' : 'ISBN',
                       style: GoogleFonts.inter(fontSize: 13),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -369,7 +369,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Enter Book Details',
+            'Détails du livre',
             style: GoogleFonts.outfit(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -381,7 +381,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
             controller: _titleController,
             style: GoogleFonts.inter(fontSize: 14),
             decoration: const InputDecoration(
-              hintText: 'Title *',
+              hintText: 'Titre *',
               prefixIcon: Icon(Icons.title_rounded, size: 20),
             ),
           ),
@@ -390,7 +390,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
             controller: _authorController,
             style: GoogleFonts.inter(fontSize: 14),
             decoration: const InputDecoration(
-              hintText: 'Author *',
+              hintText: 'Auteur *',
               prefixIcon: Icon(Icons.person_rounded, size: 20),
             ),
           ),
@@ -400,7 +400,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
             keyboardType: TextInputType.number,
             style: GoogleFonts.inter(fontSize: 14),
             decoration: const InputDecoration(
-              hintText: 'Page Count',
+              hintText: 'Nombre de pages',
               prefixIcon: Icon(Icons.numbers_rounded, size: 20),
             ),
           ),
@@ -410,7 +410,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
             height: 48,
             child: ElevatedButton(
               onPressed: _addManualBook,
-              child: const Text('Add Book'),
+              child: const Text('Ajouter'),
             ),
           ),
         ],
@@ -432,7 +432,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Enter ISBN',
+            'ISBN',
             style: GoogleFonts.outfit(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -441,7 +441,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Type in the ISBN-10 or ISBN-13 number to look up a book.',
+            'Saisissez le numéro ISBN-10 ou ISBN-13 pour rechercher un livre.',
             style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textSecondary),
           ),
           const SizedBox(height: 16),
@@ -455,7 +455,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
                     keyboardType: TextInputType.text,
                     style: GoogleFonts.inter(fontSize: 14),
                     decoration: const InputDecoration(
-                      hintText: 'ISBN number...',
+                      hintText: 'ISBN...',
                       prefixIcon: Icon(Icons.qr_code_rounded, size: 20),
                     ),
                   ),
@@ -468,7 +468,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
                   onPressed: _isSearching ? null : _searchIsbn,
                   child: _isSearching
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Look Up'),
+                      : const Text('Rechercher'),
                 ),
               ),
             ],
@@ -500,7 +500,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
               text: TextSpan(
                 style: GoogleFonts.inter(fontSize: 13, color: isDark ? Colors.white70 : Colors.black87),
                 children: [
-                  const TextSpan(text: 'Did you mean "'),
+                  const TextSpan(text: 'Vouliez-vous dire "'),
                   TextSpan(
                     text: suggestion,
                     style: TextStyle(
@@ -528,7 +528,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
-                'Search',
+                'Rechercher',
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

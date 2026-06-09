@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lecto/core/database/database.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:lecto/core/router/app_router.dart';
-import 'package:lecto/core/theme/app_theme.dart';
-import 'package:lecto/features/settings/providers/settings_providers.dart';
+import 'package:lecto/core/theme/theme_provider.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Initialize database before running app
-  await AppDatabase.create();
-
-  runApp(const ProviderScope(child: LectoApp()));
+  runApp(
+    const ProviderScope(
+      child: LectoApp(),
+    ),
+  );
 }
 
 class LectoApp extends ConsumerWidget {
@@ -24,16 +24,20 @@ class LectoApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeSettingProvider);
+    final themeData = ref.watch(themeDataProvider);
 
     return MaterialApp(
       title: 'Lecto',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: themeMode,
-      initialRoute: '/',
+      theme: themeData,
       onGenerateRoute: AppRouter.onGenerateRoute,
+      builder: (context, child) {
+        return AnimatedTheme(
+          data: themeData,
+          duration: const Duration(milliseconds: 300),
+          child: child!,
+        );
+      },
     );
   }
 }

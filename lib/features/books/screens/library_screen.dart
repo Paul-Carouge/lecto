@@ -195,7 +195,7 @@ class _BookGrid extends ConsumerWidget {
       ),
       error: (err, _) => EmptyState(
         emoji: '😵',
-        title: 'Something went wrong',
+        title: 'Une erreur est survenue',
         subtitle: err.toString(),
       ),
       data: (books) {

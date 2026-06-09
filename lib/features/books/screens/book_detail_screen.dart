@@ -39,7 +39,7 @@ class BookDetailScreen extends ConsumerWidget {
       ),
       error: (err, _) => Scaffold(
         appBar: AppBar(),
-        body: Center(child: Text('Error: $err')),
+        body: Center(child: Text('Erreur : $err')),
       ),
       data: (book) {
         if (book == null) {
@@ -188,21 +188,21 @@ class _BookDetailContent extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(child: StatCardCompact(
-                      label: 'Pages Read',
+                      label: 'Pages lues',
                       value: Formatters.formatPagesShort(book.pageCount),
                       icon: Icons.auto_stories_rounded,
                       color: AppTheme.primary,
                     )),
                     const SizedBox(width: 10),
                     Expanded(child: StatCardCompact(
-                      label: 'Sessions',
+                      label: 'Séances',
                       value: '${_countSessions(ref)}',
                       icon: Icons.timer_rounded,
                       color: AppTheme.accent,
                     )),
                     const SizedBox(width: 10),
                     Expanded(child: StatCardCompact(
-                      label: 'Total Time',
+                      label: 'Temps total',
                       value: Formatters.formatDuration(_totalTime(ref)),
                       icon: Icons.schedule_rounded,
                       color: AppTheme.success,
@@ -225,10 +225,10 @@ class _BookDetailContent extends ConsumerWidget {
                     ),
                     label: Text(
                       book.status == ReadingStatus.finished
-                          ? 'Read Again'
+                          ? 'Relire'
                           : book.status == ReadingStatus.reading
-                              ? 'Continue Reading'
-                              : 'Start Reading',
+                              ? 'Continuer la lecture'
+                              : 'Commencer la lecture',
                     ),
                   ),
                 ),
@@ -251,13 +251,13 @@ class _BookDetailContent extends ConsumerWidget {
 
                 // Details
                 if (book.publisher != null || book.isbn != null || book.pageCount != null) ...[
-                  _SectionTitle(title: 'Details'),
+                  _SectionTitle(title: 'Détails'),
                   const SizedBox(height: 8),
-                  _DetailRow(label: 'Publisher', value: book.publisher),
+                  _DetailRow(label: 'Éditeur', value: book.publisher),
                   _DetailRow(label: 'ISBN', value: book.isbn),
                   _DetailRow(label: 'Pages', value: book.pageCount?.toString()),
-                  _DetailRow(label: 'Published', value: book.publishedDate),
-                  _DetailRow(label: 'Language', value: book.language),
+                  _DetailRow(label: 'Date de publication', value: book.publishedDate),
+                  _DetailRow(label: 'Langue', value: book.language),
                   const SizedBox(height: 24),
                 ],
 
@@ -285,7 +285,7 @@ class _BookDetailContent extends ConsumerWidget {
                 ],
 
                 // Reading sessions
-                _SectionTitle(title: 'Reading Sessions'),
+                _SectionTitle(title: 'Séances de lecture'),
                 const SizedBox(height: 8),
                 _SessionList(sessionsAsync: sessionsAsync),
                 const SizedBox(height: 40),
@@ -321,7 +321,7 @@ class _BookDetailContent extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Change Reading Status',
+                'Changer le statut',
                 style: GoogleFonts.outfit(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -330,10 +330,10 @@ class _BookDetailContent extends ConsumerWidget {
               const SizedBox(height: 16),
               ...ReadingStatus.values.map((status) {
                 final (label, icon, color) = switch (status) {
-                  ReadingStatus.wantToRead => ('Want to Read', Icons.bookmark_border_rounded, AppTheme.warning),
-                  ReadingStatus.reading => ('Currently Reading', Icons.menu_book_rounded, AppTheme.primary),
-                  ReadingStatus.finished => ('Finished', Icons.check_circle_outline_rounded, AppTheme.success),
-                  ReadingStatus.abandoned => ('Abandoned', Icons.block_rounded, AppTheme.error),
+                  ReadingStatus.wantToRead => ('À lire', Icons.bookmark_border_rounded, AppTheme.warning),
+                  ReadingStatus.reading => ('En cours de lecture', Icons.menu_book_rounded, AppTheme.primary),
+                  ReadingStatus.finished => ('Terminé', Icons.check_circle_outline_rounded, AppTheme.success),
+                  ReadingStatus.abandoned => ('Abandonné', Icons.block_rounded, AppTheme.error),
                 };
                 final isSelected = status == book.status;
                 return Padding(
@@ -365,14 +365,14 @@ class _BookDetailContent extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'Delete "${book.title}"?',
+          'Supprimer "${book.title}" ?',
           style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         ),
-        content: const Text('This will permanently delete the book and all its reading sessions.'),
+        content: const Text('Cela supprimera définitivement le livre et toutes ses séances de lecture.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: const Text('Annuler'),
           ),
           TextButton(
             onPressed: () {
@@ -383,7 +383,7 @@ class _BookDetailContent extends ConsumerWidget {
               if (context.mounted) Navigator.pop(context);
             },
             style: TextButton.styleFrom(foregroundColor: AppTheme.error),
-            child: const Text('Delete'),
+            child: const Text('Supprimer'),
           ),
         ],
       ),
@@ -417,10 +417,10 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, icon, color) = switch (book.status) {
-      ReadingStatus.wantToRead => ('Want to Read', Icons.bookmark_border_rounded, AppTheme.warning),
-      ReadingStatus.reading => ('Reading', Icons.menu_book_rounded, AppTheme.primary),
-      ReadingStatus.finished => ('Finished', Icons.check_circle_outline_rounded, AppTheme.success),
-      ReadingStatus.abandoned => ('Abandoned', Icons.block_rounded, AppTheme.error),
+      ReadingStatus.wantToRead => ('À lire', Icons.bookmark_border_rounded, AppTheme.warning),
+      ReadingStatus.reading => ('En cours', Icons.menu_book_rounded, AppTheme.primary),
+      ReadingStatus.finished => ('Terminé', Icons.check_circle_outline_rounded, AppTheme.success),
+      ReadingStatus.abandoned => ('Abandonné', Icons.block_rounded, AppTheme.error),
     };
 
     return Container(
@@ -518,15 +518,15 @@ class _SessionList extends ConsumerWidget {
         padding: EdgeInsets.all(20),
         child: CircularProgressIndicator(),
       )),
-      error: (err, _) => Text('Error: $err'),
+      error: (err, _) => Text('Erreur : $err'),
       data: (sessions) {
         if (sessions.isEmpty) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: EmptyState(
               emoji: '⏱️',
-              title: 'No sessions yet',
-              subtitle: 'Start reading to track your progress!',
+              title: 'Aucune séance',
+              subtitle: 'Commencez à lire pour suivre votre progression !',
             ),
           );
         }

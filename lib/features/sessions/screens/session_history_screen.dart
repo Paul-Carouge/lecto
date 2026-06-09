@@ -22,7 +22,7 @@ class SessionHistoryScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Reading History',
+          'Historique',
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
         ),
       ),
@@ -33,8 +33,8 @@ class SessionHistoryScreen extends ConsumerWidget {
           if (sessions.isEmpty) {
             return const EmptyState(
               emoji: '⏱️',
-              title: 'No reading sessions yet',
-              subtitle: 'Start a reading session to track your progress!',
+              title: 'Aucune session de lecture',
+              subtitle: 'Commencez une session pour suivre votre progression !',
             );
           }
 
@@ -100,15 +100,15 @@ class _DateGroup extends StatelessWidget {
 
     String label;
     if (isToday) {
-      label = 'Today';
+      label = "Aujourd'hui";
     } else if (isYesterday) {
-      label = 'Yesterday';
+      label = 'Hier';
     } else {
       final months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Janv', 'Fév', 'Mars', 'Avr', 'Mai', 'Juin',
+        'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'
       ];
-      label = '${months[date.month - 1]} ${date.day}, ${date.year}';
+      label = '${date.day} ${months[date.month - 1]} ${date.year}';
     }
 
     final totalDuration = sessions.fold<int>(
@@ -137,7 +137,7 @@ class _DateGroup extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                '${sessions.length} session${sessions.length == 1 ? '' : 's'}',
+                '${sessions.length} séance${sessions.length == 1 ? '' : 's'}',
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   color: AppTheme.textSecondary,

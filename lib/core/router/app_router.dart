@@ -3,6 +3,7 @@ import 'package:lecto/features/home/screens/home_screen.dart';
 import 'package:lecto/features/books/screens/library_screen.dart';
 import 'package:lecto/features/books/screens/book_detail_screen.dart';
 import 'package:lecto/features/books/screens/add_book_screen.dart';
+import 'package:lecto/features/onboarding/screens/onboarding_screen.dart';
 import 'package:lecto/features/sessions/screens/active_session_screen.dart';
 import 'package:lecto/features/sessions/screens/session_history_screen.dart';
 import 'package:lecto/features/stats/screens/stats_screen.dart';
@@ -35,6 +36,7 @@ class AppRouter {
   static const String recommendations = '/recommendations';
   static const String wrapped = '/wrapped';
   static const String settings = '/settings';
+  static const String onboarding = '/onboarding';
 
   /// Generates a route path for a book detail by ID.
   static String bookDetail(String bookId) => '/book/$bookId';
@@ -132,6 +134,11 @@ class AppRouter {
         return MaterialPageRoute(
           settings: settings,
           builder: (_) => const SettingsScreen(),
+        );
+      case AppRouter.onboarding:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const OnboardingScreen(),
         );
       default:
         return MaterialPageRoute(
