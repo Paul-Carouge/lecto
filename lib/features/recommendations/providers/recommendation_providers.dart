@@ -135,18 +135,18 @@ class RecommendationEngine extends _$RecommendationEngine {
     // Fetch similar books by author
     for (final entry in topAuthors.take(3)) {
       try {
-        final results = await _bookSearchService.searchBooks('inauthor:"${entry.key}"');
-        for (final result in results) {
-          final title = (result['title'] as String?)?.trim().toLowerCase();
+        final searchResult = await _bookSearchService.searchBooks('inauthor:"${entry.key}"');
+        for (final bookData in searchResult.books) {
+          final title = (bookData['title'] as String?)?.trim().toLowerCase();
           if (title == null || title.isEmpty) continue;
           if (seenTitles.contains(title)) continue;
           seenTitles.add(title);
 
           allCandidates.add(GeneratedRecommendation(
-            title: result['title'] as String? ?? '',
-            author: result['author'] as String? ?? 'Unknown Author',
-            coverUrl: result['coverUrl'] as String?,
-            description: result['description'] as String?,
+            title: bookData['title'] as String? ?? '',
+            author: bookData['author'] as String? ?? 'Unknown Author',
+            coverUrl: bookData['coverUrl'] as String?,
+            description: bookData['description'] as String?,
             recommendationType: 'author_similar',
             score: 0.85,
           ));

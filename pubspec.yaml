@@ -1,7 +1,7 @@
 name: lecto
 description: "Lecto — Votre tracker de lecture personnel et local"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.4.0+1
 
 environment:
   sdk: ^3.12.1

@@ -64,12 +64,12 @@ class AddBook extends _$AddBook {
   /// Searches for [query] on Google Books, picks the first result,
   /// creates a database entry, and returns the saved [Book].
   Future<Book> addBook(String query) async {
-    final results = await _bookSearchService.searchBooks(query);
-    if (results.isEmpty) {
+    final result = await _bookSearchService.searchBooks(query);
+    if (result.isEmpty) {
       throw BookProviderException('No books found for "$query"');
     }
 
-    final bookData = results.first;
+    final bookData = result.books.first;
     final db = ref.read(databaseProvider);
 
     // Convert categories list to List<String>
@@ -157,7 +157,8 @@ class UpdateBookStatus extends _$UpdateBookStatus {
 @Riverpod(keepAlive: true)
 Future<List<Map<String, dynamic>>> bookSearch(BookSearchRef ref, String query) async {
   if (query.trim().isEmpty) return [];
-  return _bookSearchService.searchBooks(query);
+  final result = await _bookSearchService.searchBooks(query);
+  return result.books;
 }
 
 // ============================================================

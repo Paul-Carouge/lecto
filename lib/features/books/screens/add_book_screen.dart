@@ -66,15 +66,19 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
     _debounce = Timer(const Duration(milliseconds: 400), () => _searchBooks(query));
   }
 
+  String? _suggestedQuery;
+
   Future<void> _searchBooks(String query) async {
     setState(() {
       _isSearching = true;
       _error = null;
+      _suggestedQuery = null;
     });
     try {
-      final results = await _bookSearch.searchBooks(query);
+      final result = await _bookSearch.searchBooks(query);
       setState(() {
-        _results = results;
+        _results = result.books;
+        _suggestedQuery = result.suggestedQuery;
         _isSearching = false;
       });
     } catch (e) {
@@ -274,13 +278,16 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
                   ),
                 ),
               )
-            else if (_results.isNotEmpty)
+            else if (_suggestedQuery != null && _results.isEmpty)
+              _buildSuggestionBanner(_suggestedQuery!)
+            else if (_results.isNotEmpty) ...[
+              if (_suggestedQuery != null) _buildSuggestionBanner(_suggestedQuery!),
               ..._results.map((book) => _SearchResultItem(
                     bookData: book,
                     onTap: () => _addBookFromSearch(book),
                   )),
-
-            if (_results.isNotEmpty) const SizedBox(height: 24),
+              const SizedBox(height: 24),
+            ],
 
             // Alternative options
             Row(
@@ -466,6 +473,69 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionBanner(String suggestion) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: AppTheme.primary.withValues(alpha: 0.08),
+        border: Border.all(
+          color: AppTheme.primary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.tips_and_updates_rounded,
+              size: 20, color: AppTheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(fontSize: 13, color: isDark ? Colors.white70 : Colors.black87),
+                children: [
+                  const TextSpan(text: 'Did you mean "'),
+                  TextSpan(
+                    text: suggestion,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                  const TextSpan(text: '"?'),
+                ],
+              ),
+            ),
+          ),
+          if (_results.isEmpty)
+            TextButton(
+              onPressed: () {
+                _searchController.text = suggestion;
+                _searchController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: suggestion.length),
+                );
+                _searchBooks(suggestion);
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Search',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primary,
+                ),
+              ),
+            ),
         ],
       ),
     );
