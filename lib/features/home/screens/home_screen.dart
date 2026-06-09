@@ -10,6 +10,7 @@ import 'package:lecto/core/theme/theme_provider.dart';
 import 'package:lecto/core/theme/themes.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
 import 'package:lecto/features/sessions/providers/session_providers.dart';
+import 'package:lecto/features/recommendations/providers/recommendation_providers.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -148,6 +149,78 @@ class HomeScreen extends ConsumerWidget {
                         error: (_, __) => const SizedBox.shrink(),
                       ),
                       const SizedBox(height: 32),
+
+                      // Recommendations
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pushNamed(context, AppRouter.recommendations);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  palette.primary.withValues(alpha: 0.08),
+                                  palette.primaryLight.withValues(alpha: 0.04),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: palette.primary.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: palette.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    Icons.auto_awesome_rounded,
+                                    color: palette.primary,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Recommandations',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: onSurface,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Basées sur vos lectures',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          color: muted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  size: 14,
+                                  color: palette.primary,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
                       // Quick actions
                       Text(

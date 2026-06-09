@@ -6,7 +6,7 @@ part of 'wrapped_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$monthlyWrappedHash() => r'3f23b9abe8bbd8b1edaf454c69a51d4920ce2035';
+String _$monthlyWrappedHash() => r'7c8abc8ad49c2612705756a13b70e5f70eb420a8';
 
 /// Copied from Dart SDK
 class _SystemHash {

@@ -1,20 +1,67 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lecto/core/database/database.dart';
-import 'package:lecto/core/theme/app_theme.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
-import 'package:lecto/features/books/widgets/book_card.dart';
-import 'package:lecto/shared/widgets/empty_state.dart';
 
-/// Main book library screen showing all books in a beautiful grid.
-///
-/// Features:
-///   - Search bar at top
-///   - Filter chips for reading status
-///   - Beautiful book cards with cover, title, author, progress
-///   - Tap to navigate to book detail
-///   - FAB to add a book
+// ============================================================
+// Palette terracotta — couleurs chaleureuses pour la bibliothèque
+// ============================================================
+const _primary = Color(0xFFC85A3E);
+const _accent = Color(0xFFE8B84B);
+const _offWhite = Color(0xFFF8F5F0);
+const _offDark = Color(0xFF1C1A18);
+
+/// Palette de couleurs pour les dos de livres, dérivée des teintes chaudes.
+const _spinePalette = [
+  Color(0xFFC85A3E), // terracotta principal
+  Color(0xFFD97A60), // terracotta clair
+  Color(0xFFE8B84B), // or doux
+  Color(0xFFB4432E), // terracotta foncé
+  Color(0xFFD4A574), // ocre
+  Color(0xFF8B5E3C), // brun chaud
+  Color(0xFFC75B39), // brûlé
+  Color(0xFF6B4226), // brun profond
+  Color(0xFFE8A87C), // pêche
+  Color(0xFFA0522D), // sienna
+];
+
+// ============================================================
+// Couleurs des statuts de lecture
+// ============================================================
+const _statusColors = {
+  ReadingStatus.wantToRead: Color(0xFFD97A60),
+  ReadingStatus.reading: Color(0xFFC85A3E),
+  ReadingStatus.finished: Color(0xFF6B8E4E),
+  ReadingStatus.abandoned: Color(0xFF9E9E9E),
+};
+
+const _statusLabels = {
+  ReadingStatus.wantToRead: 'À lire',
+  ReadingStatus.reading: 'En cours',
+  ReadingStatus.finished: 'Terminé',
+  ReadingStatus.abandoned: 'Abandonné',
+};
+
+// ============================================================
+// Filtres disponibles
+// ============================================================
+enum _FilterTab { all, reading, finished, wantToRead }
+
+const _filterTabs = [
+  (_FilterTab.all, 'Tous'),
+  (_FilterTab.reading, 'En cours'),
+  (_FilterTab.finished, 'Terminé'),
+  (_FilterTab.wantToRead, 'À lire'),
+];
+
+// ============================================================
+// LibraryScreen
+// ============================================================
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -24,8 +71,8 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final _searchController = TextEditingController();
-  ReadingStatus? _selectedFilter;
-  bool _isSearching = false;
+  _FilterTab _selectedFilter = _FilterTab.all;
+  bool _showSearch = false;
 
   @override
   void dispose() {
@@ -33,315 +80,1305 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     super.dispose();
   }
 
+  String get _searchQuery => _searchController.text.trim().toLowerCase();
+
+  List<Book> _filterBooks(List<Book> books) {
+    var filtered = books;
+
+    // Filtre par statut
+    if (_selectedFilter != _FilterTab.all) {
+      filtered = filtered.where((b) {
+        return switch (_selectedFilter) {
+          _FilterTab.reading => b.status == ReadingStatus.reading,
+          _FilterTab.finished => b.status == ReadingStatus.finished,
+          _FilterTab.wantToRead => b.status == ReadingStatus.wantToRead,
+          _ => true,
+        };
+      }).toList();
+    }
+
+    // Filtre par recherche
+    if (_searchQuery.isNotEmpty) {
+      filtered = filtered.where((b) =>
+          b.title.toLowerCase().contains(_searchQuery) ||
+          b.author.toLowerCase().contains(_searchQuery) ||
+          (b.isbn?.toLowerCase().contains(_searchQuery) ?? false)).toList();
+    }
+
+    return filtered;
+  }
+
+  /// Regroupe les livres par statut : À lire / En cours / Terminé
+  Map<ReadingStatus, List<Book>> _groupByStatus(List<Book> books) {
+    final map = <ReadingStatus, List<Book>>{};
+    for (final book in books) {
+      if (book.status == ReadingStatus.abandoned) continue;
+      map.putIfAbsent(book.status, () => []);
+      map[book.status]!.add(book);
+    }
+    return map;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? _offDark : _offWhite;
+    final surfaceColor = isDark ? const Color(0xFF252220) : Colors.white;
 
     return Scaffold(
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text(
-          'Bibliothèque',
-          style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w700),
+        backgroundColor: bgColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        toolbarHeight: 64,
+        title: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: child,
+          ),
+          child: _showSearch
+              ? SizedBox(
+                  height: 44,
+                  child: TextField(
+                    key: const ValueKey('search'),
+                    controller: _searchController,
+                    autofocus: true,
+                    onChanged: (_) => setState(() {}),
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: isDark ? Colors.white : _offDark,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Rechercher un livre…',
+                      hintStyle: GoogleFonts.inter(
+                        fontSize: 15,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.35)
+                            : Colors.black.withValues(alpha: 0.25),
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        size: 22,
+                        color: _primary,
+                      ),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.clear_rounded,
+                                size: 20,
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.5)
+                                    : Colors.black.withValues(alpha: 0.3),
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 16,
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.black.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.black.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: _primary, width: 2),
+                      ),
+                    ),
+                  ),
+                )
+              : Text(
+                  'Bibliothèque',
+                  key: const ValueKey('title'),
+                  style: GoogleFonts.outfit(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : _offDark,
+                  ),
+                ),
         ),
         actions: [
           IconButton(
-            icon: Icon(_isSearching ? Icons.close_rounded : Icons.search_rounded),
-            onPressed: () => setState(() => _isSearching = !_isSearching),
+            icon: Icon(
+              _showSearch ? Icons.close_rounded : Icons.search_rounded,
+              color: _primary,
+              size: 26,
+            ),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              setState(() {
+                _showSearch = !_showSearch;
+                if (!_showSearch) {
+                  _searchController.clear();
+                }
+              });
+            },
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
         children: [
-          // Search bar
-          if (_isSearching)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: SizedBox(
-                height: 44,
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (_) => setState(() {}),
-                  style: GoogleFonts.inter(fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Rechercher par titre, auteur ou ISBN...',
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
+          // --- Filtres à onglets ---
+          _buildFilterTabs(isDark, surfaceColor),
+
+          // --- Bibliothèque / Bookshelf ---
+          Expanded(
+            child: _buildBookshelf(isDark, surfaceColor),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: _primary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          Navigator.pushNamed(context, '/add-book');
+        },
+        child: const Icon(Icons.add_rounded, size: 28),
+      ),
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Filtres à onglets
+  // ----------------------------------------------------------
+  Widget _buildFilterTabs(bool isDark, Color surfaceColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: _filterTabs.map((tab) {
+          final (value, label) = tab;
+          final isSelected = _selectedFilter == value;
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: tab == _filterTabs.last ? 0 : 6,
+              ),
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() => _selectedFilter = value);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: isSelected
+                        ? _primary
+                        : isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.white,
+                    border: !isSelected
+                        ? Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : Colors.black.withValues(alpha: 0.06),
                           )
                         : null,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    filled: true,
-                    fillColor: isDark ? AppTheme.surfaceCard : Colors.grey.withValues(alpha: 0.06),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: _primary.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : isDark
+                                ? Colors.white.withValues(alpha: 0.6)
+                                : Colors.black.withValues(alpha: 0.5),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-
-          // Filter chips
-          Container(
-            height: 40,
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              children: [
-                _FilterChip(
-                  label: 'Tous',
-                  selected: _selectedFilter == null,
-                  onTap: () => setState(() => _selectedFilter = null),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'En cours',
-                  selected: _selectedFilter == ReadingStatus.reading,
-                  onTap: () => setState(() => _selectedFilter = ReadingStatus.reading),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Terminé',
-                  selected: _selectedFilter == ReadingStatus.finished,
-                  onTap: () => setState(() => _selectedFilter = ReadingStatus.finished),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'À lire',
-                  selected: _selectedFilter == ReadingStatus.wantToRead,
-                  onTap: () => setState(() => _selectedFilter = ReadingStatus.wantToRead),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Abandonné',
-                  selected: _selectedFilter == ReadingStatus.abandoned,
-                  onTap: () => setState(() => _selectedFilter = ReadingStatus.abandoned),
-                ),
-              ],
-            ),
-          ),
-
-          // Book grid
-          Expanded(
-            child: _buildBookList(),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/add-book'),
-        child: const Icon(Icons.add_rounded),
+          );
+        }).toList(),
       ),
     );
   }
 
-  Widget _buildBookList() {
-    final search = _searchController.text.trim();
-
-    if (_selectedFilter != null) {
-      return _BookGrid(
-        provider: booksByStatusProvider(_selectedFilter!),
-        searchFilter: search.isNotEmpty ? search : null,
-        ref: ref,
-        onBookTap: (book) => Navigator.pushNamed(context, '/book/${book.id}'),
-      );
-    }
-
-    return _BookGrid(
-      provider: allBooksProvider,
-      searchFilter: search.isNotEmpty ? search : null,
-      ref: ref,
-      onBookTap: (book) => Navigator.pushNamed(context, '/book/${book.id}'),
-    );
-  }
-}
-
-class _BookGrid extends ConsumerWidget {
-  final dynamic provider;
-  final String? searchFilter;
-  final void Function(Book) onBookTap;
-  final WidgetRef ref;
-
-  const _BookGrid({
-    required this.provider,
-    this.searchFilter,
-    required this.onBookTap,
-    required this.ref,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef widgetRef) {
-    final asyncBooks = ref.watch(provider as FutureProvider<List<Book>>);
+  // ----------------------------------------------------------
+  // Bookshelf
+  // ----------------------------------------------------------
+  Widget _buildBookshelf(bool isDark, Color surfaceColor) {
+    final asyncBooks = ref.watch(allBooksProvider);
 
     return asyncBooks.when(
-      loading: () => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: GridView.builder(
-          padding: const EdgeInsets.only(bottom: 80),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.65,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+      loading: () => _buildSkeletonLoading(isDark),
+      error: (err, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('😵', style: TextStyle(fontSize: 48)),
+              const SizedBox(height: 16),
+              Text(
+                'Une erreur est survenue',
+                style: GoogleFonts.outfit(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : _offDark,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                err.toString(),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.5)
+                      : Colors.black.withValues(alpha: 0.4),
+                ),
+              ),
+            ],
           ),
-          itemCount: 6,
-          itemBuilder: (_, __) => const _BookCardSkeleton(),
         ),
       ),
-      error: (err, _) => EmptyState(
-        emoji: '😵',
-        title: 'Une erreur est survenue',
-        subtitle: err.toString(),
-      ),
       data: (books) {
-        var filtered = books;
-        if (searchFilter != null && searchFilter!.isNotEmpty) {
-          final q = searchFilter!.toLowerCase();
-          filtered = books.where((b) =>
-            b.title.toLowerCase().contains(q) ||
-            b.author.toLowerCase().contains(q) ||
-            (b.isbn?.toLowerCase().contains(q) ?? false)
-          ).toList();
-        }
+        final filtered = _filterBooks(books);
 
         if (filtered.isEmpty) {
-          return EmptyState(
-            emoji: searchFilter != null ? '🔍' : '📚',
-            title: searchFilter != null ? 'Aucun livre trouvé' : 'Votre bibliothèque est vide',
-            subtitle: searchFilter != null
-                ? 'Essayez un autre terme de recherche'
-                : 'Ajoutez votre premier livre pour commencer !',
-            actionLabel: 'Ajouter un livre',
-            actionIcon: Icons.add_rounded,
-            onAction: () => Navigator.pushNamed(context, '/add-book'),
-          );
+          return _buildEmptyState(isDark, _searchQuery.isNotEmpty);
         }
 
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(provider),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: GridView.builder(
-              padding: const EdgeInsets.only(bottom: 80),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.65,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+          color: _primary,
+          onRefresh: () async {
+            ref.invalidate(allBooksProvider);
+            ref.invalidate(booksByStatusProvider);
+          },
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
+                sliver: _buildShelves(filtered, isDark),
               ),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final book = filtered[index];
-                return BookCard(
-                  book: book,
-                  onTap: () => onBookTap(book),
-                );
-              },
-            ),
+            ],
           ),
         );
       },
     );
   }
-}
 
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: selected
-              ? AppTheme.primary
-              : Theme.of(context).brightness == Brightness.dark
-                  ? AppTheme.surfaceCard
-                  : Colors.grey.withValues(alpha: 0.1),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : AppTheme.textSecondary,
+  // ----------------------------------------------------------
+  // Étagères groupées par statut
+  // ----------------------------------------------------------
+  Widget _buildShelves(List<Book> books, bool isDark) {
+    // Si un filtre spécifique est sélectionné, les livres sont déjà filtrés
+    // On crée une seule étagère
+    if (_selectedFilter != _FilterTab.all) {
+      return SliverList(
+        delegate: SliverChildListDelegate([
+          _ShelfSection(
+            label: _statusLabels[books.first.status] ?? 'Livres',
+            books: books,
+            isDark: isDark,
           ),
+        ]),
+      );
+    }
+
+    // Sinon, on groupe par statut
+    final grouped = _groupByStatus(books);
+    final order = [
+      ReadingStatus.reading,
+      ReadingStatus.wantToRead,
+      ReadingStatus.finished,
+    ];
+
+    final sections = <Widget>[];
+    for (final status in order) {
+      final shelfBooks = grouped[status];
+      if (shelfBooks == null || shelfBooks.isEmpty) continue;
+      sections.add(
+        _ShelfSection(
+          label: _statusLabels[status] ?? '',
+          books: shelfBooks,
+          isDark: isDark,
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildListDelegate(sections),
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Skeleton de chargement
+  // ----------------------------------------------------------
+  Widget _buildSkeletonLoading(bool isDark) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      children: List.generate(3, (sectionIndex) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionLabel(
+              ['En cours', 'À lire', 'Terminé'][sectionIndex],
+              isDark,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 140,
+              child: Row(
+                children: List.generate(
+                  4 + sectionIndex,
+                  (i) => Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Container(
+                      width: 34,
+                      height: [120, 100, 140, 90, 110][
+                          (sectionIndex + i) % 5].toDouble(),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.04),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            _buildShelfLine(isDark),
+            const SizedBox(height: 28),
+          ],
+        );
+      }),
+    );
+  }
+
+  // ----------------------------------------------------------
+  // État vide
+  // ----------------------------------------------------------
+  Widget _buildEmptyState(bool isDark, bool hasSearch) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Illustration d'étagère vide
+            SizedBox(
+              height: 180,
+              child: CustomPaint(
+                painter: _EmptyShelfPainter(isDark: isDark),
+                size: const Size(double.infinity, 180),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              hasSearch ? '🔍' : '📚',
+              style: const TextStyle(fontSize: 48),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              hasSearch ? 'Aucun livre trouvé' : 'Votre bibliothèque est vide',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : _offDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasSearch
+                  ? 'Essayez un autre terme de recherche'
+                  : 'Ajoutez votre premier livre pour commencer !',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.5)
+                    : Colors.black.withValues(alpha: 0.4),
+              ),
+            ),
+            if (!hasSearch) ...[
+              const SizedBox(height: 28),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.pushNamed(context, '/add-book');
+                  },
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: Text(
+                    'Ajouter un livre',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
-}
 
-class _BookCardSkeleton extends StatelessWidget {
-  const _BookCardSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: isDark ? AppTheme.surfaceCard : Colors.grey.withValues(alpha: 0.06),
-      ),
-      child: Column(
+  // ----------------------------------------------------------
+  // Helpers
+  // ----------------------------------------------------------
+  Widget _buildSectionLabel(String label, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 2),
+      child: Row(
         children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.grey.withValues(alpha: 0.08),
-              ),
+          Container(
+            width: 3,
+            height: 18,
+            decoration: BoxDecoration(
+              color: _primary,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 12,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.08)
-                        : Colors.grey.withValues(alpha: 0.15),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  width: 80,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.05)
-                        : Colors.grey.withValues(alpha: 0.1),
-                  ),
-                ),
-              ],
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : _offDark,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: _primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '0',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: _primary,
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildShelfLine(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      height: 4,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _primary.withValues(alpha: isDark ? 0.4 : 0.25),
+            _primary.withValues(alpha: isDark ? 0.1 : 0.05),
+            Colors.transparent,
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// _ShelfSection — une étagère avec ses livres
+// ============================================================
+class _ShelfSection extends StatefulWidget {
+  final String label;
+  final List<Book> books;
+  final bool isDark;
+
+  const _ShelfSection({
+    required this.label,
+    required this.books,
+    required this.isDark,
+  });
+
+  @override
+  State<_ShelfSection> createState() => _ShelfSectionState();
+}
+
+class _ShelfSectionState extends State<_ShelfSection> {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        // Label de la section
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12, left: 2),
+          child: Row(
+            children: [
+              Container(
+                width: 3,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: _primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: widget.isDark ? Colors.white : _offDark,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${widget.books.length}',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: _primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Dos des livres arrangés en rangées
+        _buildSpineRows(),
+
+        // Ligne d'étagère
+        Container(
+          margin: const EdgeInsets.only(top: 10),
+          height: 4,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                _primary.withValues(alpha: widget.isDark ? 0.4 : 0.25),
+                _primary.withValues(alpha: widget.isDark ? 0.1 : 0.05),
+                Colors.transparent,
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpineRows() {
+    final books = widget.books;
+    if (books.isEmpty) return const SizedBox.shrink();
+
+    // On dispose les livres en rangées de ~5 pour créer l'effet étagère
+    final rows = <List<Book>>[];
+    for (var i = 0; i < books.length; i += 5) {
+      rows.add(books.sublist(i, min(i + 5, books.length)));
+    }
+
+    return Column(
+      children: rows.asMap().entries.map((entry) {
+        final rowIndex = entry.key;
+        final rowBooks = entry.value;
+        return Padding(
+          padding: EdgeInsets.only(top: rowIndex > 0 ? 6 : 0),
+          child: _BookSpineRow(
+            books: rowBooks,
+            rowIndex: rowIndex,
+            isDark: widget.isDark,
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ============================================================
+// _BookSpineRow — une rangée de dos de livres
+// ============================================================
+class _BookSpineRow extends StatelessWidget {
+  final List<Book> books;
+  final int rowIndex;
+  final bool isDark;
+
+  const _BookSpineRow({
+    required this.books,
+    required this.rowIndex,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _rowHeight(books),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: books.asMap().entries.map((entry) {
+          final index = entry.key;
+          final book = entry.value;
+          return _AnimatedSpine(
+            book: book,
+            globalIndex: rowIndex * 5 + index,
+            isDark: isDark,
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  double _rowHeight(List<Book> books) {
+    double maxH = 0;
+    for (final book in books) {
+      maxH = max(maxH, _spineHeight(book));
+    }
+    return maxH + 4; // +4 pour un petit padding en haut
+  }
+}
+
+// ============================================================
+// _AnimatedSpine — dos de livre avec animation d'apparition
+// ============================================================
+class _AnimatedSpine extends StatefulWidget {
+  final Book book;
+  final int globalIndex;
+  final bool isDark;
+
+  const _AnimatedSpine({
+    required this.book,
+    required this.globalIndex,
+    required this.isDark,
+  });
+
+  @override
+  State<_AnimatedSpine> createState() => _AnimatedSpineState();
+}
+
+class _AnimatedSpineState extends State<_AnimatedSpine> {
+  double _opacity = 0.0;
+  double _translateY = 20.0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(Duration(milliseconds: 80 * widget.globalIndex), () {
+        if (mounted) {
+          setState(() {
+            _opacity = 1.0;
+            _translateY = 0.0;
+          });
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _opacity,
+      duration: Duration(milliseconds: 400 + 50 * widget.globalIndex),
+      curve: Curves.easeOutCubic,
+      child: AnimatedSlide(
+        offset: Offset(0, _translateY / 100),
+        duration: Duration(milliseconds: 400 + 50 * widget.globalIndex),
+        curve: Curves.easeOutCubic,
+        child: _BookSpine(
+          book: widget.book,
+          isDark: widget.isDark,
+          onTap: () => _showBookQuickView(context, widget.book),
+        ),
+      ),
+    );
+  }
+
+  void _showBookQuickView(BuildContext context, Book book) {
+    HapticFeedback.lightImpact();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _BookQuickView(
+        book: book,
+        isDark: widget.isDark,
+      ),
+    );
+  }
+}
+
+// ============================================================
+// _BookSpine — le dos d'un livre individuel
+// ============================================================
+class _BookSpine extends StatelessWidget {
+  final Book book;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _BookSpine({
+    required this.book,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final height = _spineHeight(book);
+    final spineColor = _spineColorFor(book);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Container(
+          width: 34,
+          height: height,
+          decoration: BoxDecoration(
+            color: spineColor,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(3),
+              topRight: Radius.circular(3),
+              bottomLeft: Radius.circular(2),
+              bottomRight: Radius.circular(2),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: spineColor.withValues(alpha: 0.3),
+                blurRadius: 4,
+                offset: const Offset(1, 2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(3),
+              topRight: Radius.circular(3),
+              bottomLeft: Radius.circular(2),
+              bottomRight: Radius.circular(2),
+            ),
+            child: Column(
+              children: [
+                // Bande décorative en haut du dos
+                Container(
+                  height: 6,
+                  color: spineColor.withValues(alpha: 0.3),
+                ),
+                // Titre vertical
+                Expanded(
+                  child: RotatedBox(
+                    quarterTurns: 3,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            book.title,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: _textColorFor(spineColor),
+                              letterSpacing: 0.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Petite bande décorative en bas
+                Container(
+                  height: 4,
+                  color: spineColor.withValues(alpha: 0.2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// _BookQuickView — aperçu rapide d'un livre (bottom sheet)
+// ============================================================
+class _BookQuickView extends StatelessWidget {
+  final Book book;
+  final bool isDark;
+
+  const _BookQuickView({
+    required this.book,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = _statusColors[book.status] ?? _primary;
+    final statusLabel = _statusLabels[book.status] ?? '';
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.pop(context);
+        Navigator.pushNamed(context, '/book/${book.id}');
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: isDark ? const Color(0xFF252220) : Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Indicateur de swipe
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(2),
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : Colors.black.withValues(alpha: 0.1),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    // Couverture
+                    Container(
+                      width: 120,
+                      height: 170,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: book.coverUrl != null &&
+                                book.coverUrl!.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: book.coverUrl!,
+                                fit: BoxFit.cover,
+                                placeholder: (_, _) => _coverPlaceholder(),
+                                errorWidget: (_, _, _) =>
+                                    _coverPlaceholder(),
+                              )
+                            : _coverPlaceholder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Titre
+                    Text(
+                      book.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : _offDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Auteur
+                    Text(
+                      book.author,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.6)
+                            : Colors.black.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Badge de statut
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+
+                    if (book.pageCount != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '${book.pageCount} pages',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.4)
+                              : Colors.black.withValues(alpha: 0.35),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+
+                    // Bouton voir détails
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.pop(context);
+                          Navigator.pushNamed(context, '/book/${book.id}');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          'Voir les détails',
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Indice de swipe
+                    Text(
+                      'Balayez pour fermer',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.25)
+                            : Colors.black.withValues(alpha: 0.2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _coverPlaceholder() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _primary.withValues(alpha: 0.2),
+            _accent.withValues(alpha: 0.1),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.book_rounded,
+          size: 40,
+          color: _primary.withValues(alpha: 0.4),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// _EmptyShelfPainter — peint une illustration d'étagère vide
+// ============================================================
+class _EmptyShelfPainter extends CustomPainter {
+  final bool isDark;
+
+  _EmptyShelfPainter({required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shelfPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.15)
+          : Colors.black.withValues(alpha: 0.08)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    final shadowPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.03)
+          : Colors.black.withValues(alpha: 0.03)
+      ..style = PaintingStyle.fill;
+
+    // Étages de l'étagère vide
+    final shelfYs = [size.height * 0.3, size.height * 0.6, size.height * 0.85];
+
+    for (final y in shelfYs) {
+      // Ombre de l'étagère
+      canvas.drawRect(
+        Rect.fromLTRB(20, y - 2, size.width - 20, y + 6),
+        shadowPaint,
+      );
+      // Ligne d'étagère
+      canvas.drawLine(
+        Offset(20, y),
+        Offset(size.width - 20, y),
+        shelfPaint,
+      );
+    }
+
+    // Petits supports d'étagère (triangles)
+    final supportPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.1)
+          : Colors.black.withValues(alpha: 0.06)
+      ..style = PaintingStyle.fill;
+
+    for (final y in shelfYs) {
+      // Support gauche
+      final leftPath = Path()
+        ..moveTo(28, y)
+        ..lineTo(34, y + 8)
+        ..lineTo(28, y + 8)
+        ..close();
+      canvas.drawPath(leftPath, supportPaint);
+
+      // Support droit
+      final rightPath = Path()
+        ..moveTo(size.width - 28, y)
+        ..lineTo(size.width - 34, y + 8)
+        ..lineTo(size.width - 28, y + 8)
+        ..close();
+      canvas.drawPath(rightPath, supportPaint);
+    }
+
+    // Petits livres décoratifs (silhouettes) sur l'étagère du haut
+    final decoPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.06)
+          : Colors.black.withValues(alpha: 0.04)
+      ..style = PaintingStyle.fill;
+
+    final decoBooks = [
+      Offset(60, 1),
+      Offset(78, 3),
+      Offset(98, 0),
+    ];
+    final decoHeights = [24.0, 32.0, 20.0];
+
+    for (var i = 0; i < decoBooks.length; i++) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            decoBooks[i].dx,
+            shelfYs[0] - decoHeights[i] - 4 + decoBooks[i].dy,
+            14,
+            decoHeights[i],
+          ),
+          const Radius.circular(2),
+        ),
+        decoPaint,
+      );
+    }
+
+    // Plante décorative sur le côté droit de l'étagère du haut
+    final plantPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.05)
+          : const Color(0xFF6B8E4E).withValues(alpha: 0.15)
+      ..style = PaintingStyle.fill;
+
+    final plantPath = Path()
+      ..moveTo(size.width - 70, shelfYs[0])
+      ..quadraticBezierTo(
+        size.width - 55,
+        shelfYs[0] - 30,
+        size.width - 60,
+        shelfYs[0] - 45,
+      )
+      ..quadraticBezierTo(
+        size.width - 65,
+        shelfYs[0] - 30,
+        size.width - 70,
+        shelfYs[0],
+      )
+      ..close();
+    canvas.drawPath(plantPath, plantPaint);
+
+    final plantPath2 = Path()
+      ..moveTo(size.width - 62, shelfYs[0])
+      ..quadraticBezierTo(
+        size.width - 48,
+        shelfYs[0] - 25,
+        size.width - 52,
+        shelfYs[0] - 38,
+      )
+      ..quadraticBezierTo(
+        size.width - 56,
+        shelfYs[0] - 25,
+        size.width - 62,
+        shelfYs[0],
+      )
+      ..close();
+    canvas.drawPath(plantPath2, plantPaint);
+
+    // Pot de la plante
+    final potPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06)
+      ..style = PaintingStyle.fill;
+
+    final potPath = Path()
+      ..moveTo(size.width - 68, shelfYs[0])
+      ..lineTo(size.width - 56, shelfYs[0])
+      ..lineTo(size.width - 58, shelfYs[0] + 12)
+      ..lineTo(size.width - 66, shelfYs[0] + 12)
+      ..close();
+    canvas.drawPath(potPath, potPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _EmptyShelfPainter oldDelegate) =>
+      oldDelegate.isDark != isDark;
+}
+
+// ============================================================
+// Utilitaires
+// ============================================================
+
+/// Calcule la hauteur d'un dos de livre en fonction du nombre de pages.
+double _spineHeight(Book book) {
+  final base = 80.0;
+  if (book.pageCount == null || book.pageCount! <= 0) {
+    // Variation aléatoire basée sur le hash du titre
+    final seed = book.title.hashCode.abs() % 40;
+    return base + seed;
+  }
+  // Entre 80 et 160 selon le nombre de pages
+  final h = base + (book.pageCount! / 1000.0 * 80).clamp(0, 80);
+  return h;
+}
+
+/// Détermine la couleur du dos en fonction des catégories du livre.
+Color _spineColorFor(Book book) {
+  if (book.categories.isEmpty) {
+    return _primary;
+  }
+  // Utilise la première catégorie pour déterminer la couleur
+  final hash = book.categories.first.hashCode.abs();
+  return _spinePalette[hash % _spinePalette.length];
+}
+
+/// Choisit la couleur du texte (blanc ou noir) selon la luminosité du fond.
+Color _textColorFor(Color bg) {
+  // Using luminance formula: 0.299*R + 0.587*G + 0.114*B
+  final l = 0.299 * bg.r * 255 + 0.587 * bg.g * 255 + 0.114 * bg.b * 255;
+  return l > 150 ? const Color(0xFF1C1A18) : Colors.white;
 }

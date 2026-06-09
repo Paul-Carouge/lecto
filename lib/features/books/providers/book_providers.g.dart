@@ -314,7 +314,7 @@ class _CurrentBookProviderElement extends FutureProviderElement<Book?>
   String get id => (origin as CurrentBookProvider).id;
 }
 
-String _$bookSearchHash() => r'6b1eeb830f365a47be6612cec643191bee68ebbc';
+String _$bookSearchHash() => r'e2c10d9757af9b7345b1abd83b89d083ba3b3b70';
 
 /// Searches the Google Books API for books matching [query].
 ///
@@ -464,7 +464,7 @@ class _BookSearchProviderElement
   String get query => (origin as BookSearchProvider).query;
 }
 
-String _$addBookHash() => r'b61c36609f90d57538996b5a47b2c6ee6b196a0b';
+String _$addBookHash() => r'4d4132e5ec5b0b3f777e9b8af76b7319659252da';
 
 abstract class _$AddBook extends BuildlessAsyncNotifier<Book> {
   late final Map<String, dynamic> params;
