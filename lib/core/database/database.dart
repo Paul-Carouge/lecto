@@ -656,6 +656,13 @@ class AppDatabase {
     return result.first['total'] as int;
   }
 
+  int totalSessions() {
+    final result = _db.select(
+      'SELECT COUNT(*) as total FROM reading_sessions',
+    );
+    return result.first['total'] as int;
+  }
+
   Duration totalReadingTime() {
     final result = _db.select(
       'SELECT COALESCE(SUM(duration_seconds), 0) as total FROM reading_sessions',

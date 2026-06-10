@@ -67,6 +67,24 @@ class StatsScreen extends ConsumerStatefulWidget {
 class _StatsScreenState extends ConsumerState<StatsScreen> {
   final GlobalKey _screenshotKey = GlobalKey();
   bool _sharing = false;
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_initialized) {
+        _initialized = true;
+        final now = DateTime.now();
+        ref.invalidate(bookshelfStatsProvider);
+        ref.invalidate(monthlyStatsProvider(now.year));
+        ref.invalidate(monthlyDurationProvider(now.year));
+        ref.invalidate(topGenresProvider);
+        ref.invalidate(currentGoalProgressProvider);
+        ref.invalidate(goalsProvider);
+      }
+    });
+  }
 
   Future<void> _shareScreenshot() async {
     try {
@@ -113,6 +131,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
     final statsAsync = ref.watch(bookshelfStatsProvider);
     final monthlyPagesAsync = ref.watch(monthlyStatsProvider(year));
+    final monthlyDurationAsync = ref.watch(monthlyDurationProvider(year));
     final genresAsync = ref.watch(topGenresProvider);
     final monthlyGoalAsync =
         ref.watch(currentGoalProgressProvider(year, month: currentMonth));
@@ -147,8 +166,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
+          final now = DateTime.now();
           ref.invalidate(bookshelfStatsProvider);
-          ref.invalidate(monthlyStatsProvider(year));
+          ref.invalidate(monthlyStatsProvider(now.year));
+          ref.invalidate(monthlyDurationProvider(now.year));
           ref.invalidate(topGenresProvider);
           ref.invalidate(currentGoalProgressProvider);
           ref.invalidate(goalsProvider);
@@ -168,6 +189,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           data: (stats) {
             final hasData = stats.totalBooks > 0 ||
                 stats.totalPages > 0 ||
+                stats.totalSessions > 0 ||
                 stats.totalTime.inMinutes > 0;
 
             if (!hasData) {
@@ -336,8 +358,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     data: (monthlyData) {
                       final pagesThisMonth =
                           monthlyData[currentMonth] ?? 0;
+                      final durationThisMonth = monthlyDurationAsync.when(
+                        data: (durationData) => Duration(
+                          seconds: durationData[currentMonth] ?? 0,
+                        ),
+                        loading: () => Duration.zero,
+                        error: (_, _) => Duration.zero,
+                      );
                       return _MonthlyProgress(
                         pagesThisMonth: pagesThisMonth,
+                        durationThisMonth: durationThisMonth,
                         monthlyGoal: monthlyGoal,
                         palette: palette,
                         isDark: isDark,
@@ -415,7 +445,7 @@ class _GoalsSection extends StatelessWidget {
                 successColor: successColor,
                 palette: palette,
               ),
-              if (yearlyBooksGoal.hasGoal || true) ...[
+              if (yearlyBooksGoal.hasGoal) ...[
                 const SizedBox(height: 16),
                 // ---- Yearly books goal ----
                 _buildGoalRow(
@@ -971,12 +1001,14 @@ class _GenreChips extends StatelessWidget {
 
 class _MonthlyProgress extends StatelessWidget {
   final int pagesThisMonth;
+  final Duration durationThisMonth;
   final _GoalInfo monthlyGoal;
   final ThemePalette palette;
   final bool isDark;
 
   const _MonthlyProgress({
     required this.pagesThisMonth,
+    required this.durationThisMonth,
     required this.monthlyGoal,
     required this.palette,
     required this.isDark,
@@ -988,6 +1020,16 @@ class _MonthlyProgress extends StatelessWidget {
     final progress = goalPages > 0
         ? (pagesThisMonth / goalPages).clamp(0.0, 1.0)
         : 0.0;
+
+    // Format duration for display
+    String _formatDuration(Duration d) {
+      final hours = d.inHours;
+      final minutes = d.inMinutes.remainder(60);
+      if (hours > 0) {
+        return minutes > 0 ? '${hours}h ${minutes}min' : '${hours}h';
+      }
+      return '${minutes} min';
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1005,17 +1047,24 @@ class _MonthlyProgress extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Ligne : Pages lues ce mois / Objectif
+          // Ligne : Pages lues ce mois
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '$pagesThisMonth pages lues',
-                style: GoogleFonts.outfit(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? palette.textOnDark : palette.textPrimary,
-                ),
+              Row(
+                children: [
+                  Icon(Icons.auto_stories_rounded,
+                      size: 16, color: palette.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$pagesThisMonth pages lues',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? palette.textOnDark : palette.textPrimary,
+                    ),
+                  ),
+                ],
               ),
               Text(
                 monthlyGoal.hasGoal ? '$goalPages pages' : '',
@@ -1024,6 +1073,25 @@ class _MonthlyProgress extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                   color: isDark
                       ? palette.textOnDark.withValues(alpha: 0.5)
+                      : palette.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Ligne : Temps de lecture ce mois
+          Row(
+            children: [
+              Icon(Icons.schedule_rounded,
+                  size: 16, color: palette.primary),
+              const SizedBox(width: 6),
+              Text(
+                '${_formatDuration(durationThisMonth)} de lecture',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? palette.textOnDark.withValues(alpha: 0.7)
                       : palette.textSecondary,
                 ),
               ),

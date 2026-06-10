@@ -12,12 +12,14 @@ part 'stats_providers.g.dart';
 class BookshelfStats {
   final int totalBooks;
   final int totalPages;
+  final int totalSessions;
   final Duration totalTime;
   final int currentStreak;
 
   const BookshelfStats({
     this.totalBooks = 0,
     this.totalPages = 0,
+    this.totalSessions = 0,
     this.totalTime = Duration.zero,
     this.currentStreak = 0,
   });
@@ -30,6 +32,7 @@ Future<BookshelfStats> bookshelfStats(BookshelfStatsRef ref) async {
   return BookshelfStats(
     totalBooks: db.totalBooksRead(),
     totalPages: db.totalPagesRead(),
+    totalSessions: db.totalSessions(),
     totalTime: db.totalReadingTime(),
     currentStreak: db.currentStreak(),
   );
