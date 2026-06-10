@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -34,17 +35,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _appBuildNumber = '...';
   final _nameController = TextEditingController();
   bool _nameInitialized = false;
-  bool _nameModified = false;
+  Timer? _nameDebounce;
 
   @override
   void initState() {
     super.initState();
     _loadVersion();
+    _nameController.addListener(_onNameChanged);
+  }
+
+  void _onNameChanged() {
+    _nameDebounce?.cancel();
+    _nameDebounce = Timer(const Duration(milliseconds: 500), () {
+      ref.read(userNameProvider.notifier).setName(_nameController.text.trim());
+    });
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _nameDebounce?.cancel();
     super.dispose();
   }
 
@@ -60,24 +70,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _appVersion = '1.0.0';
         _appBuildNumber = '1';
       });
-    }
-  }
-
-  Future<void> _saveName() async {
-    final name = _nameController.text.trim();
-    await ref.read(userNameProvider.notifier).setName(name);
-    setState(() => _nameModified = false);
-    if (context.mounted) {
-      HapticFeedback.lightImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            name.isEmpty ? 'Nom effacé' : 'Nom enregistré',
-          ),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
     }
   }
 
@@ -176,15 +168,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _nameController,
-                    onChanged: (value) {
-                      final trimmed = value.trim();
-                      final saved = ref.read(userNameProvider).valueOrNull ?? '';
-                      final modified = trimmed != saved;
-                      if (modified != _nameModified) {
-                        setState(() => _nameModified = modified);
-                      }
-                    },
-                    onSubmitted: (_) => _saveName(),
                     textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
                       hintText: 'Votre prénom',
@@ -198,15 +181,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         horizontal: 14,
                         vertical: 12,
                       ),
-                      suffixIcon: _nameModified
-                          ? IconButton(
-                              icon: Icon(
-                                Icons.check_circle_rounded,
-                                color: colorScheme.primary,
-                              ),
-                              onPressed: _saveName,
-                            )
-                          : null,
                     ),
                     style: GoogleFonts.inter(
                       fontSize: 15,

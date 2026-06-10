@@ -41,7 +41,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final palette = ref.watch(themePaletteProvider);
     final isDark = ref.watch(isDarkModeProvider);
     final readingBooks = ref.watch(booksByStatusProvider(ReadingStatus.reading));
-    final allSessions = ref.watch(recentSessionsProvider);
     final statsAsync = ref.watch(bookshelfStatsProvider);
 
     final bg = isDark ? palette.surfaceDark : palette.surfaceLight;
@@ -118,59 +117,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           onSurface: onSurface,
                           muted: muted,
                         ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // ── Recent sessions ──
-                      Text(
-                        'Dernières sessions',
-                        style: GoogleFonts.outfit(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      allSessions.when(
-                        data: (sessions) {
-                          if (sessions.isEmpty) {
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 24),
-                              child: Center(
-                                child: Text(
-                                  'Commencez votre première session',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: muted,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                          return SizedBox(
-                            height: 100,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: sessions.length > 5
-                                  ? 5
-                                  : sessions.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 10),
-                              itemBuilder: (context, i) {
-                                final s = sessions[i];
-                                return _SessionMiniCard(
-                                  session: s,
-                                  palette: palette,
-                                  surface: surface,
-                                  muted: muted,
-                                );
-                              },
-                            ),
-                          );
-                        },
-                        loading: () => const SizedBox(height: 100),
-                        error: (_, __) => const SizedBox.shrink(),
                       ),
                       const SizedBox(height: 32),
 

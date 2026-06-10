@@ -371,10 +371,10 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
                 const SizedBox(height: 24),
 
                 // -------------------------------------------------------
-                // Page tracker (-1 / Page / +1)
+                // Page number (tappable for keyboard entry)
                 // -------------------------------------------------------
                 if (hasStarted)
-                  _PageTracker(
+                  _PageDisplay(
                     currentPage: sessionState.currentPage,
                     onPageChange: (page) {
                       ref
@@ -501,6 +501,82 @@ class _EndSessionSheetState extends State<_EndSessionSheet> {
     setState(() => _pages++);
   }
 
+  Future<void> _showPageInputDialog() async {
+    final palette = widget.palette;
+    final isDark = widget.isDark;
+    final controller = TextEditingController(text: _pages.toString());
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Entrer le nombre de pages',
+            style: GoogleFonts.outfit(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: isDark ? palette.textOnDark : palette.textPrimary,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            style: GoogleFonts.outfit(
+              fontSize: 36,
+              fontWeight: FontWeight.w700,
+              color: isDark ? palette.textOnDark : palette.textPrimary,
+            ),
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: palette.primary.withValues(alpha: 0.08),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                'Annuler',
+                style: GoogleFonts.inter(
+                  color: palette.textSecondary,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                final value = int.tryParse(controller.text);
+                if (value != null && value >= 0) {
+                  Navigator.pop(dialogContext, value);
+                }
+              },
+              child: Text(
+                'OK',
+                style: GoogleFonts.inter(
+                  color: palette.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null) {
+      HapticFeedback.selectionClick();
+      setState(() => _pages = result);
+    }
+  }
+
   void _confirm() {
     Navigator.pop(context, {
       'pagesRead': _pages,
@@ -625,22 +701,25 @@ class _EndSessionSheetState extends State<_EndSessionSheet> {
               ),
               const SizedBox(width: 20),
 
-              // Pages display
-              Container(
-                constraints: const BoxConstraints(minWidth: 100),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  color: palette.primary.withValues(alpha: 0.08),
-                ),
-                child: Text(
-                  _pages.toString(),
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? palette.textOnDark : palette.textPrimary,
+              // Pages display (tappable)
+              GestureDetector(
+                onTap: _showPageInputDialog,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 100),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: palette.primary.withValues(alpha: 0.08),
+                  ),
+                  child: Text(
+                    _pages.toString(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.outfit(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? palette.textOnDark : palette.textPrimary,
+                    ),
                   ),
                 ),
               ),
@@ -804,16 +883,16 @@ class _TimerDisplay extends StatelessWidget {
 }
 
 // ============================================================
-// Page tracker (-1 / Page / +1)
+// Page display (tappable number for keyboard entry)
 // ============================================================
-class _PageTracker extends StatefulWidget {
+class _PageDisplay extends StatelessWidget {
   final int? currentPage;
   final ValueChanged<int> onPageChange;
   final ThemePalette palette;
   final bool isDark;
   final Color onSurface;
 
-  const _PageTracker({
+  const _PageDisplay({
     required this.currentPage,
     required this.onPageChange,
     required this.palette,
@@ -821,111 +900,106 @@ class _PageTracker extends StatefulWidget {
     required this.onSurface,
   });
 
-  @override
-  State<_PageTracker> createState() => _PageTrackerState();
-}
+  Future<void> _showPageInputDialog(BuildContext context) async {
+    final page = currentPage ?? 0;
+    final controller = TextEditingController(text: page.toString());
+    final isDark = this.isDark;
+    final palette = this.palette;
 
-class _PageTrackerState extends State<_PageTracker> {
-  double _minusScale = 1.0;
-  double _plusScale = 1.0;
+    final result = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Changer la page',
+            style: GoogleFonts.outfit(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: isDark ? palette.textOnDark : palette.textPrimary,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            style: GoogleFonts.outfit(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: isDark ? palette.textOnDark : palette.textPrimary,
+            ),
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: palette.primary.withValues(alpha: 0.08),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                'Annuler',
+                style: GoogleFonts.inter(
+                  color: palette.textSecondary,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                final value = int.tryParse(controller.text);
+                if (value != null && value >= 0) {
+                  Navigator.pop(dialogContext, value);
+                }
+              },
+              child: Text(
+                'OK',
+                style: GoogleFonts.inter(
+                  color: palette.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
 
-  void _onMinusPress() {
-    HapticFeedback.mediumImpact();
-    setState(() => _minusScale = 0.9);
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) setState(() => _minusScale = 1.0);
-    });
-    final page = widget.currentPage ?? 0;
-    if (page > 0) {
-      widget.onPageChange(page - 1);
+    if (result != null) {
+      HapticFeedback.mediumImpact();
+      onPageChange(result);
     }
-  }
-
-  void _onPlusPress() {
-    HapticFeedback.mediumImpact();
-    setState(() => _plusScale = 0.9);
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) setState(() => _plusScale = 1.0);
-    });
-    final page = widget.currentPage ?? 0;
-    widget.onPageChange(page + 1);
   }
 
   @override
   Widget build(BuildContext context) {
-    final page = widget.currentPage ?? 0;
-    final canDecrement = page > 0;
+    final page = currentPage ?? 0;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // -1 button
-        AnimatedScale(
-          scale: _minusScale,
-          duration: const Duration(milliseconds: 100),
-          child: GestureDetector(
-            onTap: canDecrement ? _onMinusPress : null,
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: canDecrement
-                    ? widget.palette.primary.withValues(alpha: 0.1)
-                    : widget.palette.textSecondary.withValues(alpha: 0.08),
-              ),
-              child: Icon(
-                Icons.remove_rounded,
-                size: 28,
-                color: canDecrement
-                    ? widget.palette.primary
-                    : widget.palette.textSecondary.withValues(alpha: 0.3),
-              ),
-            ),
+    return GestureDetector(
+      onTap: () => _showPageInputDialog(context),
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 80),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: palette.primary.withValues(alpha: 0.08),
+        ),
+        child: Text(
+          page.toString(),
+          textAlign: TextAlign.center,
+          style: GoogleFonts.outfit(
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+            color: onSurface,
           ),
         ),
-        const SizedBox(width: 20),
-        // Current page number
-        Container(
-          constraints: const BoxConstraints(minWidth: 80),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: widget.palette.primary.withValues(alpha: 0.08),
-          ),
-          child: Text(
-            page.toString(),
-            textAlign: TextAlign.center,
-            style: GoogleFonts.outfit(
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-              color: widget.onSurface,
-            ),
-          ),
-        ),
-        const SizedBox(width: 20),
-        // +1 button
-        AnimatedScale(
-          scale: _plusScale,
-          duration: const Duration(milliseconds: 100),
-          child: GestureDetector(
-            onTap: _onPlusPress,
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: widget.palette.primary.withValues(alpha: 0.1),
-              ),
-              child: Icon(
-                Icons.add_rounded,
-                size: 28,
-                color: widget.palette.primary,
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

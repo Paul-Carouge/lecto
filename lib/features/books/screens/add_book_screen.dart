@@ -31,6 +31,8 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
   final _bookSearch = BookSearchService();
   Timer? _debounce;
 
+  int _searchRequestId = 0;
+
   List<Map<String, dynamic>> _results = [];
   bool _isSearching = false;
   bool _hasSearched = false;
@@ -70,6 +72,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
   }
 
   Future<void> _searchBooks(String query) async {
+    final requestId = ++_searchRequestId;
     setState(() {
       _isSearching = true;
       _error = null;
@@ -78,14 +81,14 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
     });
     try {
       final result = await _bookSearch.searchBooks(query);
-      if (!mounted) return;
+      if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _results = result.books;
         _suggestedQuery = result.suggestedQuery;
         _isSearching = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _error = e.toString();
         _isSearching = false;
@@ -124,12 +127,98 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
 
       HapticFeedback.mediumImpact();
 
-      final startReading = await showDialog<bool>(
+      final palette = ref.read(themePaletteProvider);
+      final isDark = ref.read(isDarkModeProvider);
+
+      final startReading = await showModalBottomSheet<bool>(
         context: context,
-        builder: (ctx) => _AddBookSuccessDialog(book: book),
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        backgroundColor: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
+        builder: (sheetContext) {
+          final sheetPalette = ThemePalette.fromOption(AppThemeOption.terracotta);
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 28,
+              right: 28,
+              top: 12,
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 36,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(2),
+                    color: (isDark ? sheetPalette.textOnDark.withValues(alpha: 0.2) : sheetPalette.textSecondary.withValues(alpha: 0.2)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: sheetPalette.primary.withValues(alpha: 0.1),
+                  ),
+                  child: Icon(Icons.check_circle_rounded, size: 32, color: sheetPalette.primary),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Ajouté à la bibliothèque',
+                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: isDark ? sheetPalette.textOnDark : sheetPalette.textPrimary),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  book.title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(fontSize: 15, color: sheetPalette.textSecondary),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity, height: 52,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(sheetContext, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: sheetPalette.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    child: Text('Commencer la lecture', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity, height: 52,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetContext, false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: sheetPalette.primary,
+                      side: BorderSide(color: sheetPalette.primary.withValues(alpha: 0.3)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text('Plus tard', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       );
 
       if (!mounted) return;
+
+      _searchController.clear();
+      _searchFocusNode.unfocus();
+      setState(() {
+        _results = [];
+        _hasSearched = false;
+      });
 
       if (startReading == true) {
         final now = DateTime.now();

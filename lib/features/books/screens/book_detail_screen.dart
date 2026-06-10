@@ -58,6 +58,15 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
       curve: Curves.easeOut,
     );
     _fadeController.forward();
+
+    // Force refresh providers when screen first loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(currentBookProvider(widget.bookId));
+      ref.invalidate(bookPagesReadProvider(widget.bookId));
+      ref.invalidate(bookRemainingPagesProvider(widget.bookId));
+      ref.invalidate(activeBookSessionProvider(widget.bookId));
+      ref.invalidate(bookSessionsProvider(widget.bookId));
+    });
   }
 
   @override
@@ -158,69 +167,12 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
                   ),
                 ),
                 actions: [
-                  PopupMenuButton<ReadingStatus>(
+                  IconButton(
                     icon: Icon(
                       Icons.more_vert_rounded,
                       color: isDark ? Colors.white70 : palette.textSecondary,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    onSelected: (status) {
-                      _updateStatus(book, status);
-                    },
-                    itemBuilder: (_) => [
-                      _statusMenuItem(
-                        'À lire',
-                        ReadingStatus.wantToRead,
-                        Icons.bookmark_border_rounded,
-                        AppTheme.warning,
-                        book.status,
-                      ),
-                      _statusMenuItem(
-                        'En cours',
-                        ReadingStatus.reading,
-                        Icons.menu_book_rounded,
-                        _statusColor(ReadingStatus.reading),
-                        book.status,
-                      ),
-                      _statusMenuItem(
-                        'Terminé',
-                        ReadingStatus.finished,
-                        Icons.check_circle_outline_rounded,
-                        _statusColor(ReadingStatus.finished),
-                        book.status,
-                      ),
-                      _statusMenuItem(
-                        'Abandonné',
-                        ReadingStatus.abandoned,
-                        Icons.block_rounded,
-                        _statusColor(ReadingStatus.abandoned),
-                        book.status,
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: null,
-                        onTap: () => _confirmDelete(book),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.delete_rounded,
-                              size: 20,
-                              color: AppTheme.error,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Supprimer',
-                              style: GoogleFonts.inter(
-                                color: AppTheme.error,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    onPressed: () => _showBookMenuBottomSheet(book),
                   ),
                 ],
               ),
@@ -392,37 +344,105 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
     );
   }
 
-  PopupMenuItem<ReadingStatus> _statusMenuItem(
-    String label,
-    ReadingStatus status,
-    IconData icon,
-    Color color,
-    ReadingStatus currentStatus,
-  ) {
-    final isSelected = status == currentStatus;
-    return PopupMenuItem(
-      value: isSelected ? null : status,
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: isSelected ? color : AppTheme.textSecondary,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected ? color : null,
+  void _showBookMenuBottomSheet(Book book) {
+    final palette = ref.read(themePaletteProvider);
+    final isDark = ref.read(isDarkModeProvider);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? palette.surfaceCardDark : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final statuses = [
+          (ReadingStatus.wantToRead, 'À lire', Icons.bookmark_border_rounded, AppTheme.warning),
+          (ReadingStatus.reading, 'En cours', Icons.menu_book_rounded, _statusColor(ReadingStatus.reading)),
+          (ReadingStatus.finished, 'Terminé', Icons.check_circle_outline_rounded, _statusColor(ReadingStatus.finished)),
+          (ReadingStatus.abandoned, 'Abandonné', Icons.block_rounded, _statusColor(ReadingStatus.abandoned)),
+        ];
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Text(
+                    'Changer le statut',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: palette.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Status options
+                ...statuses.map((s) {
+                  final (status, label, icon, color) = s;
+                  final isSelected = status == book.status;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    child: ListTile(
+                      leading: Icon(
+                        icon,
+                        size: 22,
+                        color: isSelected ? color : palette.textSecondary,
+                      ),
+                      title: Text(
+                        label,
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          color: isSelected ? color : (isDark ? Colors.white : palette.textPrimary),
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? Icon(Icons.check_circle_rounded, size: 22, color: color)
+                          : null,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _updateStatus(book, status);
+                      },
+                    ),
+                  );
+                }),
+                const Divider(height: 24, indent: 20, endIndent: 20),
+                // Delete
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  child: ListTile(
+                    leading: const Icon(Icons.delete_rounded, size: 22, color: AppTheme.error),
+                    title: Text(
+                      'Supprimer',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.error,
+                      ),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _confirmDelete(book);
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-          if (isSelected) ...[
-            const Spacer(),
-            Icon(Icons.check_circle_rounded, size: 18, color: color),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -673,29 +693,6 @@ class _InfoGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <_InfoItem>[
-      _InfoItem(
-        icon: Icons.auto_stories_rounded,
-        label: 'Pages',
-        value: book.pageCount?.toString() ?? '—',
-      ),
-      _InfoItem(
-        icon: Icons.qr_code_rounded,
-        label: 'ISBN',
-        value: book.isbn ?? '—',
-      ),
-      _InfoItem(
-        icon: Icons.business_rounded,
-        label: 'Éditeur',
-        value: book.publisher ?? '—',
-      ),
-      _InfoItem(
-        icon: Icons.calendar_today_rounded,
-        label: 'Date de publication',
-        value: book.publishedDate ?? '—',
-      ),
-    ];
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -710,66 +707,103 @@ class _InfoGrid extends StatelessWidget {
           ),
         ],
       ),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 3.2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 8,
-        ),
-        itemCount: items.length,
-        itemBuilder: (_, i) => _InfoTile(item: items[i], palette: palette),
+      child: Column(
+        children: [
+          // Ligne 1 : Pages | ISBN
+          Row(
+            children: [
+              Flexible(
+                flex: 1,
+                child: _InfoCell(
+                  icon: Icons.auto_stories_rounded,
+                  label: 'Pages',
+                  value: book.pageCount?.toString() ?? '—',
+                  palette: palette,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                flex: 1,
+                child: _InfoCell(
+                  icon: Icons.qr_code_rounded,
+                  label: 'ISBN',
+                  value: book.isbn ?? '—',
+                  palette: palette,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Ligne 2 : Éditeur | Date de publication
+          Row(
+            children: [
+              Flexible(
+                flex: 1,
+                child: _InfoCell(
+                  icon: Icons.business_rounded,
+                  label: 'Éditeur',
+                  value: book.publisher ?? '—',
+                  palette: palette,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                flex: 1,
+                child: _InfoCell(
+                  icon: Icons.calendar_today_rounded,
+                  label: 'Date de publication',
+                  value: book.publishedDate ?? '—',
+                  palette: palette,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _InfoItem {
+class _InfoCell extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final ThemePalette palette;
 
-  const _InfoItem({
+  const _InfoCell({
     required this.icon,
     required this.label,
     required this.value,
+    required this.palette,
   });
-}
-
-class _InfoTile extends StatelessWidget {
-  final _InfoItem item;
-  final ThemePalette palette;
-
-  const _InfoTile({required this.item, required this.palette});
 
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(item.icon, size: 18, color: palette.textSecondary),
-        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 18, color: palette.textSecondary),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                item.value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                value,
                 style: GoogleFonts.inter(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                item.label,
+                label,
                 style: GoogleFonts.inter(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: palette.textSecondary,
                 ),
               ),

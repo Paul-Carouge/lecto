@@ -105,7 +105,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = ref.watch(isDarkModeProvider);
     final palette = ref.watch(themePaletteProvider);
     final now = DateTime.now();
     final year = now.year;
@@ -275,7 +275,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   _SectionHeader(title: 'Pages par mois'),
                   const SizedBox(height: 12),
                   monthlyPagesAsync.when(
-                    loading: () => _ChartPlaceholder(),
+                    loading: () => const SizedBox(height: 200),
                     error: (err, _) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Text(
@@ -301,7 +301,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   _SectionHeader(title: 'Genres favoris'),
                   const SizedBox(height: 12),
                   genresAsync.when(
-                    loading: () => _ChartPlaceholder(height: 48),
+                    loading: () => const SizedBox(height: 48),
                     error: (_, _) => const SizedBox.shrink(),
                     data: (genres) {
                       if (genres.isEmpty) {
@@ -331,7 +331,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   _SectionHeader(title: 'Ce mois-ci'),
                   const SizedBox(height: 12),
                   monthlyPagesAsync.when(
-                    loading: () => _ChartPlaceholder(height: 80),
+                    loading: () => const SizedBox(height: 80),
                     error: (_, _) => const SizedBox.shrink(),
                     data: (monthlyData) {
                       final pagesThisMonth =
@@ -1082,23 +1082,6 @@ class _MonthlyProgress extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Chart placeholder (loading)
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _ChartPlaceholder extends StatelessWidget {
-  final double height;
-  const _ChartPlaceholder({this.height = 200});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: const Center(child: CircularProgressIndicator()),
     );
   }
 }

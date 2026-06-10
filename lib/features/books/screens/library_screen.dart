@@ -116,6 +116,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final bgColor = isDark ? _offDark : _offWhite;
     final surfaceColor = isDark ? const Color(0xFF252220) : Colors.white;
 
+    // Détermine si la bibliothèque contient des livres (non filtrés)
+    final hasBooks = ref.watch(allBooksProvider).when(
+      data: (books) => books.isNotEmpty,
+      loading: () => false,
+      error: (_, __) => false,
+    );
+
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
@@ -241,19 +248,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _primary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          Navigator.pushNamed(context, '/add-book');
-        },
-        child: const Icon(Icons.add_rounded, size: 28),
-      ),
+      // FAB visible uniquement quand la bibliothèque a des livres
+      floatingActionButton: hasBooks
+          ? FloatingActionButton(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/',
+                  (route) => route.isFirst,
+                );
+              },
+              child: const Icon(Icons.add_rounded, size: 28),
+            )
+          : null,
     );
   }
 
@@ -550,7 +564,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     HapticFeedback.lightImpact();
-                    Navigator.pushNamed(context, '/add-book');
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/',
+                      (route) => route.isFirst,
+                    );
                   },
                   icon: const Icon(Icons.add_rounded, size: 20),
                   label: Text(

@@ -178,11 +178,21 @@ class ActiveSession extends _$ActiveSession {
       pagesRead: state.pagesRead,
     );
 
-    // Invalidate session list providers
+    // Invalidate all dependent providers
     if (state.bookId != null) {
-      ref.invalidate(bookSessionsProvider(state.bookId!));
+      final bookId = state.bookId!;
+      ref.invalidate(bookSessionsProvider(bookId));
+      ref.invalidate(bookPagesReadProvider(bookId));
+      ref.invalidate(bookRemainingPagesProvider(bookId));
+      ref.invalidate(activeBookSessionProvider(bookId));
     }
     ref.invalidate(recentSessionsProvider);
+    ref.invalidate(allBooksProvider);
+    ref.invalidate(booksByStatusProvider);
+    ref.invalidate(bookshelfStatsProvider);
+    ref.invalidate(monthlyStatsProvider(DateTime.now().year));
+    ref.invalidate(monthlyDurationProvider(DateTime.now().year));
+    ref.invalidate(topGenresProvider);
 
     state = const ActiveSessionState();
   }
@@ -240,6 +250,9 @@ class ActiveSession extends _$ActiveSession {
     ref.invalidate(allBooksProvider);
     ref.invalidate(booksByStatusProvider);
     ref.invalidate(bookshelfStatsProvider);
+    ref.invalidate(monthlyStatsProvider(DateTime.now().year));
+    ref.invalidate(monthlyDurationProvider(DateTime.now().year));
+    ref.invalidate(topGenresProvider);
 
     state = const ActiveSessionState();
   }
