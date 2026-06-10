@@ -464,6 +464,407 @@ class _BookSearchProviderElement
   String get query => (origin as BookSearchProvider).query;
 }
 
+String _$bookPagesReadHash() => r'3986aa70ce60846f3245a3649b187db6712b0cda';
+
+/// Provides the total number of pages read across all sessions for a [bookId].
+///
+/// Copied from [bookPagesRead].
+@ProviderFor(bookPagesRead)
+const bookPagesReadProvider = BookPagesReadFamily();
+
+/// Provides the total number of pages read across all sessions for a [bookId].
+///
+/// Copied from [bookPagesRead].
+class BookPagesReadFamily extends Family<AsyncValue<int>> {
+  /// Provides the total number of pages read across all sessions for a [bookId].
+  ///
+  /// Copied from [bookPagesRead].
+  const BookPagesReadFamily();
+
+  /// Provides the total number of pages read across all sessions for a [bookId].
+  ///
+  /// Copied from [bookPagesRead].
+  BookPagesReadProvider call(String bookId) {
+    return BookPagesReadProvider(bookId);
+  }
+
+  @override
+  BookPagesReadProvider getProviderOverride(
+    covariant BookPagesReadProvider provider,
+  ) {
+    return call(provider.bookId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'bookPagesReadProvider';
+}
+
+/// Provides the total number of pages read across all sessions for a [bookId].
+///
+/// Copied from [bookPagesRead].
+class BookPagesReadProvider extends FutureProvider<int> {
+  /// Provides the total number of pages read across all sessions for a [bookId].
+  ///
+  /// Copied from [bookPagesRead].
+  BookPagesReadProvider(String bookId)
+    : this._internal(
+        (ref) => bookPagesRead(ref as BookPagesReadRef, bookId),
+        from: bookPagesReadProvider,
+        name: r'bookPagesReadProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$bookPagesReadHash,
+        dependencies: BookPagesReadFamily._dependencies,
+        allTransitiveDependencies:
+            BookPagesReadFamily._allTransitiveDependencies,
+        bookId: bookId,
+      );
+
+  BookPagesReadProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.bookId,
+  }) : super.internal();
+
+  final String bookId;
+
+  @override
+  Override overrideWith(
+    FutureOr<int> Function(BookPagesReadRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: BookPagesReadProvider._internal(
+        (ref) => create(ref as BookPagesReadRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        bookId: bookId,
+      ),
+    );
+  }
+
+  @override
+  FutureProviderElement<int> createElement() {
+    return _BookPagesReadProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is BookPagesReadProvider && other.bookId == bookId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, bookId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin BookPagesReadRef on FutureProviderRef<int> {
+  /// The parameter `bookId` of this provider.
+  String get bookId;
+}
+
+class _BookPagesReadProviderElement extends FutureProviderElement<int>
+    with BookPagesReadRef {
+  _BookPagesReadProviderElement(super.provider);
+
+  @override
+  String get bookId => (origin as BookPagesReadProvider).bookId;
+}
+
+String _$bookRemainingPagesHash() =>
+    r'7334604b57bef4c893c962e910fdfff9fa726931';
+
+/// Provides the number of pages remaining for a book (pageCount - pagesRead).
+/// Returns null if no page count is set.
+///
+/// Copied from [bookRemainingPages].
+@ProviderFor(bookRemainingPages)
+const bookRemainingPagesProvider = BookRemainingPagesFamily();
+
+/// Provides the number of pages remaining for a book (pageCount - pagesRead).
+/// Returns null if no page count is set.
+///
+/// Copied from [bookRemainingPages].
+class BookRemainingPagesFamily extends Family<AsyncValue<int?>> {
+  /// Provides the number of pages remaining for a book (pageCount - pagesRead).
+  /// Returns null if no page count is set.
+  ///
+  /// Copied from [bookRemainingPages].
+  const BookRemainingPagesFamily();
+
+  /// Provides the number of pages remaining for a book (pageCount - pagesRead).
+  /// Returns null if no page count is set.
+  ///
+  /// Copied from [bookRemainingPages].
+  BookRemainingPagesProvider call(String bookId) {
+    return BookRemainingPagesProvider(bookId);
+  }
+
+  @override
+  BookRemainingPagesProvider getProviderOverride(
+    covariant BookRemainingPagesProvider provider,
+  ) {
+    return call(provider.bookId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'bookRemainingPagesProvider';
+}
+
+/// Provides the number of pages remaining for a book (pageCount - pagesRead).
+/// Returns null if no page count is set.
+///
+/// Copied from [bookRemainingPages].
+class BookRemainingPagesProvider extends FutureProvider<int?> {
+  /// Provides the number of pages remaining for a book (pageCount - pagesRead).
+  /// Returns null if no page count is set.
+  ///
+  /// Copied from [bookRemainingPages].
+  BookRemainingPagesProvider(String bookId)
+    : this._internal(
+        (ref) => bookRemainingPages(ref as BookRemainingPagesRef, bookId),
+        from: bookRemainingPagesProvider,
+        name: r'bookRemainingPagesProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$bookRemainingPagesHash,
+        dependencies: BookRemainingPagesFamily._dependencies,
+        allTransitiveDependencies:
+            BookRemainingPagesFamily._allTransitiveDependencies,
+        bookId: bookId,
+      );
+
+  BookRemainingPagesProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.bookId,
+  }) : super.internal();
+
+  final String bookId;
+
+  @override
+  Override overrideWith(
+    FutureOr<int?> Function(BookRemainingPagesRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: BookRemainingPagesProvider._internal(
+        (ref) => create(ref as BookRemainingPagesRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        bookId: bookId,
+      ),
+    );
+  }
+
+  @override
+  FutureProviderElement<int?> createElement() {
+    return _BookRemainingPagesProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is BookRemainingPagesProvider && other.bookId == bookId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, bookId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin BookRemainingPagesRef on FutureProviderRef<int?> {
+  /// The parameter `bookId` of this provider.
+  String get bookId;
+}
+
+class _BookRemainingPagesProviderElement extends FutureProviderElement<int?>
+    with BookRemainingPagesRef {
+  _BookRemainingPagesProviderElement(super.provider);
+
+  @override
+  String get bookId => (origin as BookRemainingPagesProvider).bookId;
+}
+
+String _$activeBookSessionHash() => r'1f537c3133e320db5b19dbcb79cebd4af99747eb';
+
+/// Provides the active (unfinished) reading session for a book, if any.
+///
+/// Copied from [activeBookSession].
+@ProviderFor(activeBookSession)
+const activeBookSessionProvider = ActiveBookSessionFamily();
+
+/// Provides the active (unfinished) reading session for a book, if any.
+///
+/// Copied from [activeBookSession].
+class ActiveBookSessionFamily extends Family<AsyncValue<ReadingSession?>> {
+  /// Provides the active (unfinished) reading session for a book, if any.
+  ///
+  /// Copied from [activeBookSession].
+  const ActiveBookSessionFamily();
+
+  /// Provides the active (unfinished) reading session for a book, if any.
+  ///
+  /// Copied from [activeBookSession].
+  ActiveBookSessionProvider call(String bookId) {
+    return ActiveBookSessionProvider(bookId);
+  }
+
+  @override
+  ActiveBookSessionProvider getProviderOverride(
+    covariant ActiveBookSessionProvider provider,
+  ) {
+    return call(provider.bookId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'activeBookSessionProvider';
+}
+
+/// Provides the active (unfinished) reading session for a book, if any.
+///
+/// Copied from [activeBookSession].
+class ActiveBookSessionProvider extends FutureProvider<ReadingSession?> {
+  /// Provides the active (unfinished) reading session for a book, if any.
+  ///
+  /// Copied from [activeBookSession].
+  ActiveBookSessionProvider(String bookId)
+    : this._internal(
+        (ref) => activeBookSession(ref as ActiveBookSessionRef, bookId),
+        from: activeBookSessionProvider,
+        name: r'activeBookSessionProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$activeBookSessionHash,
+        dependencies: ActiveBookSessionFamily._dependencies,
+        allTransitiveDependencies:
+            ActiveBookSessionFamily._allTransitiveDependencies,
+        bookId: bookId,
+      );
+
+  ActiveBookSessionProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.bookId,
+  }) : super.internal();
+
+  final String bookId;
+
+  @override
+  Override overrideWith(
+    FutureOr<ReadingSession?> Function(ActiveBookSessionRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: ActiveBookSessionProvider._internal(
+        (ref) => create(ref as ActiveBookSessionRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        bookId: bookId,
+      ),
+    );
+  }
+
+  @override
+  FutureProviderElement<ReadingSession?> createElement() {
+    return _ActiveBookSessionProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ActiveBookSessionProvider && other.bookId == bookId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, bookId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin ActiveBookSessionRef on FutureProviderRef<ReadingSession?> {
+  /// The parameter `bookId` of this provider.
+  String get bookId;
+}
+
+class _ActiveBookSessionProviderElement
+    extends FutureProviderElement<ReadingSession?>
+    with ActiveBookSessionRef {
+  _ActiveBookSessionProviderElement(super.provider);
+
+  @override
+  String get bookId => (origin as ActiveBookSessionProvider).bookId;
+}
+
 String _$addBookHash() => r'4d4132e5ec5b0b3f777e9b8af76b7319659252da';
 
 abstract class _$AddBook extends BuildlessAsyncNotifier<Book> {

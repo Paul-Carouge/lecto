@@ -15,7 +15,7 @@ import 'package:lecto/features/stats/providers/stats_providers.dart';
 /// A beautifully redesigned active reading session screen.
 ///
 /// Clean, focused view with a large digital timer, intuitive page tracking,
-/// reading stats, and a smooth end-session flow.
+/// reading stats, and a smooth end-session flow with pages input + summary.
 class ActiveSessionScreen extends ConsumerStatefulWidget {
   final String bookId;
 
@@ -48,138 +48,74 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
     }
   }
 
-  /// Shows the end-session bottom sheet with "Avez-vous terminé ce livre ?"
+  /// Shows the end-session bottom sheet with pages input,
+  /// book-finished toggle, summary display, and navigation.
   Future<void> _showEndSessionSheet(Book book) async {
     final palette = ref.read(themePaletteProvider);
     final isDark = ref.read(isDarkModeProvider);
+    final sessionState = ref.read(activeSessionProvider);
 
-    final result = await showModalBottomSheet<bool>(
+    // Pre-fill default pages: currentPage - startPage
+    final defaultPages = sessionState.pagesRead ?? 0;
+    final durationMinutes = sessionState.elapsed.inMinutes > 0
+        ? sessionState.elapsed.inMinutes
+        : 1;
+
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       backgroundColor: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
       builder: (sheetContext) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(28, 12, 28, 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Drag handle
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: isDark
-                      ? palette.textOnDark.withValues(alpha: 0.2)
-                      : palette.textSecondary.withValues(alpha: 0.2),
-                ),
-              ),
-              const SizedBox(height: 28),
-              // Icon
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: palette.primary.withValues(alpha: 0.1),
-                ),
-                child: Icon(
-                  Icons.menu_book_rounded,
-                  size: 32,
-                  color: palette.primary,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Avez-vous terminé ce livre ?',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? palette.textOnDark : palette.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                book.title,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  color: palette.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 28),
-              // "Oui" button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(sheetContext, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: palette.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Oui',
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // "Non" button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(sheetContext, false),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: palette.primary,
-                    side: BorderSide(color: palette.primary.withValues(alpha: 0.3)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    'Non',
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+        return _EndSessionSheet(
+          book: book,
+          palette: palette,
+          isDark: isDark,
+          defaultPages: defaultPages,
+          durationMinutes: durationMinutes,
+          elapsed: sessionState.elapsed,
         );
       },
     );
 
     if (result == null || !mounted) return;
 
+    final pagesRead = result['pagesRead'] as int;
+    final bookFinished = result['bookFinished'] as bool;
+    final durationMin = result['durationMinutes'] as int;
+    final pagesPerMin = pagesRead > 0
+        ? (pagesRead / durationMin).toStringAsFixed(1)
+        : '0.0';
+
+    // Build summary string
+    final hours = sessionState.elapsed.inHours;
+    final minutes = sessionState.elapsed.inMinutes.remainder(60);
+    final timeStr = hours > 0
+        ? '${hours}h${minutes.toString().padLeft(2, '0')}m'
+        : '${minutes}m';
+
+    final summary =
+        '$pagesRead pages lues en $timeStr ($pagesPerMin pages/min)';
+
+    HapticFeedback.mediumImpact();
+
     final notifier = ref.read(activeSessionProvider.notifier);
 
-    if (result == true) {
-      // "Oui" — mark book as finished, end session, navigate to wrapped
-      HapticFeedback.mediumImpact();
+    // Compute the endPage so pagesRead lands correctly
+    final endPage = (sessionState.startPage ?? 0) + pagesRead;
 
-      // Update book status to finished (with dateFinished)
+    if (bookFinished) {
+      // Mark book as finished
       final now = DateTime.now();
       ref.read(databaseProvider).updateBook(book.id, {
         'status': ReadingStatus.finished.name,
         'date_finished': now.toIso8601String(),
       });
 
-      // End session (already invalidates bookSessionsProvider + recentSessionsProvider)
-      notifier.endSession();
+      // End session with correct pages
+      notifier.endSession(endPage: endPage);
 
       // Invalidate all related providers
       ref.invalidate(allBooksProvider);
@@ -188,7 +124,16 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
       ref.invalidate(bookshelfStatsProvider);
 
       if (mounted) {
-        // Navigate to wrapped — pop back and then push wrapped
+        // Show summary snackbar before navigating
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(summary),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        // Navigate to wrapped
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/',
@@ -196,13 +141,12 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
         );
         Navigator.pushNamed(
           context,
-          AppRouter.wrappedWith(now.month, now.year),
+          AppRouter.wrappedWith(DateTime.now().month, DateTime.now().year),
         );
       }
     } else {
-      // "Non" — just end the session, navigate back
-      HapticFeedback.mediumImpact();
-      notifier.endSession();
+      // Not finished — just end session
+      notifier.endSession(endPage: endPage);
 
       // Invalidate all related providers
       ref.invalidate(allBooksProvider);
@@ -211,6 +155,15 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
       ref.invalidate(recentSessionsProvider);
 
       if (mounted) {
+        // Show summary snackbar before navigating back
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(summary),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
         Navigator.pop(context);
       }
     }
@@ -497,6 +450,317 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
           ),
         );
       },
+    );
+  }
+}
+
+// ============================================================
+// End-session bottom sheet (pages input + finished toggle)
+// ============================================================
+
+class _EndSessionSheet extends StatefulWidget {
+  final Book book;
+  final ThemePalette palette;
+  final bool isDark;
+  final int defaultPages;
+  final int durationMinutes;
+  final Duration elapsed;
+
+  const _EndSessionSheet({
+    required this.book,
+    required this.palette,
+    required this.isDark,
+    required this.defaultPages,
+    required this.durationMinutes,
+    required this.elapsed,
+  });
+
+  @override
+  State<_EndSessionSheet> createState() => _EndSessionSheetState();
+}
+
+class _EndSessionSheetState extends State<_EndSessionSheet> {
+  late int _pages;
+  bool _bookFinished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = widget.defaultPages > 0 ? widget.defaultPages : 0;
+  }
+
+  void _decrement() {
+    if (_pages > 0) {
+      HapticFeedback.selectionClick();
+      setState(() => _pages--);
+    }
+  }
+
+  void _increment() {
+    HapticFeedback.selectionClick();
+    setState(() => _pages++);
+  }
+
+  void _confirm() {
+    Navigator.pop(context, {
+      'pagesRead': _pages,
+      'bookFinished': _bookFinished,
+      'durationMinutes': widget.durationMinutes,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final isDark = widget.isDark;
+    final book = widget.book;
+
+    // Compute pages/min for live preview
+    final effectiveMinutes =
+        widget.durationMinutes > 0 ? widget.durationMinutes : 1;
+    final avg = _pages > 0
+        ? (_pages / effectiveMinutes).toStringAsFixed(1)
+        : '0.0';
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        12,
+        24,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(2),
+              color: isDark
+                  ? palette.textOnDark.withValues(alpha: 0.2)
+                  : palette.textSecondary.withValues(alpha: 0.2),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Book icon
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: palette.primary.withValues(alpha: 0.1),
+            ),
+            child: Icon(
+              Icons.menu_book_rounded,
+              size: 28,
+              color: palette.primary,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Title
+          Text(
+            'Terminer la session',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.outfit(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: isDark ? palette.textOnDark : palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            book.title,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: palette.textSecondary,
+            ),
+          ),
+
+          const SizedBox(height: 28),
+
+          // -------------------------------------------------------
+          // Pages input section
+          // -------------------------------------------------------
+          Text(
+            'Combien de pages avez-vous lues ?',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDark ? palette.textOnDark : palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Number stepper
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Minus button
+              GestureDetector(
+                onTap: _pages > 0 ? _decrement : null,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: _pages > 0 ? 1.0 : 0.3,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: palette.primary.withValues(alpha: 0.1),
+                    ),
+                    child: Icon(
+                      Icons.remove_rounded,
+                      size: 28,
+                      color: palette.primary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+
+              // Pages display
+              Container(
+                constraints: const BoxConstraints(minWidth: 100),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: palette.primary.withValues(alpha: 0.08),
+                ),
+                child: Text(
+                  _pages.toString(),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? palette.textOnDark : palette.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+
+              // Plus button
+              GestureDetector(
+                onTap: _increment,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: palette.primary.withValues(alpha: 0.1),
+                  ),
+                  child: Icon(
+                    Icons.add_rounded,
+                    size: 28,
+                    color: palette.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // -------------------------------------------------------
+          // Live preview: pages/min
+          // -------------------------------------------------------
+          if (_pages > 0)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: palette.primary.withValues(alpha: 0.06),
+              ),
+              child: Text(
+                '~ $avg pages/min',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: palette.textSecondary,
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 20),
+
+          // -------------------------------------------------------
+          // Finished toggle
+          // -------------------------------------------------------
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: isDark
+                  ? palette.textOnDark.withValues(alpha: 0.05)
+                  : palette.textSecondary.withValues(alpha: 0.06),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 22,
+                  color: _bookFinished
+                      ? palette.primary
+                      : palette.textSecondary.withValues(alpha: 0.6),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Avez-vous terminé ce livre ?',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? palette.textOnDark : palette.textPrimary,
+                    ),
+                  ),
+                ),
+                Switch(
+                  value: _bookFinished,
+                  onChanged: (val) => setState(() => _bookFinished = val),
+                  activeColor: palette.primary,
+                  activeTrackColor: palette.primary.withValues(alpha: 0.4),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // -------------------------------------------------------
+          // Confirm button
+          // -------------------------------------------------------
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _confirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: palette.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Confirmer',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lecto/core/router/app_router.dart';
 import 'package:lecto/core/theme/theme_provider.dart';
 import 'package:lecto/core/database/database.dart';
@@ -13,12 +12,7 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-
-  runApp(
-    const ProviderScope(
-      child: LectoApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: LectoApp()));
 }
 
 class LectoApp extends ConsumerWidget {
@@ -27,11 +21,11 @@ class LectoApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeData = ref.watch(themeDataProvider);
-
     return MaterialApp(
       title: 'Lecto',
       debugShowCheckedModeBanner: false,
       theme: themeData,
+      initialRoute: '/',
       onGenerateRoute: AppRouter.onGenerateRoute,
       builder: (context, child) {
         return AnimatedTheme(

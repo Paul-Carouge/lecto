@@ -1,32 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lecto/core/database/database.dart';
 import 'package:lecto/core/database/providers.dart';
 import 'package:lecto/core/theme/app_theme.dart';
+import 'package:lecto/core/theme/theme_provider.dart';
+import 'package:lecto/core/theme/themes.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
 import 'package:lecto/features/sessions/providers/session_providers.dart';
-import 'package:lecto/shared/widgets/empty_state.dart';
+import 'package:lecto/core/router/app_router.dart';
 
 // ============================================================
-// BookDetailScreen — écran détail du livre, version redesigned
+// BookDetailScreen — écran détail du livre, complet & moderne
 // ============================================================
 
-/// Écran de détail d'un livre, complètement repensé.
+/// Écran de détail d'un livre — généreux, spacieux, full-width.
 ///
-/// Affiche :
-///   - AppBar avec titre + retour
-///   - Grande couverture centrée (200px)
-///   - Titre (Outfit 22 bold), Auteur (Inter 15 muted)
-///   - Badge de statut coloré
+/// Sections (dans l'ordre) :
+///   - AppBar avec titre + menu (statut, supprimer)
+///   - Couverture Hero centrée (140×200)
+///   - Titre + Auteur + Badge de statut
 ///   - Grille d'infos 2×2 (Pages, ISBN, Éditeur, Date)
+///   - Jauges de progression (X / Y pages, Z restantes)
 ///   - Description expandable
 ///   - Catégories en chips
-///   - Sessions associées
-///   - Bouton d'action principal contextuel
-///   - Note par étoiles si terminé
-///   - Changement de statut rapide
+///   - Note par étoiles (visible pour TOUS les livres)
+///   - Section session (lancer / reprendre)
+///   - Sessions list
+///   - Bottom bar "Lire" toujours visible
 class BookDetailScreen extends ConsumerStatefulWidget {
   final String bookId;
 
@@ -65,45 +68,82 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(isDarkModeProvider);
     final bookAsync = ref.watch(currentBookProvider(widget.bookId));
     final sessionsAsync = ref.watch(bookSessionsProvider(widget.bookId));
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pagesReadAsync = ref.watch(bookPagesReadProvider(widget.bookId));
+    final remainingPagesAsync =
+        ref.watch(bookRemainingPagesProvider(widget.bookId));
+    final activeSessionAsync =
+        ref.watch(activeBookSessionProvider(widget.bookId));
 
     return bookAsync.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      loading: () => Scaffold(
+        backgroundColor: isDark ? palette.surfaceDark : palette.surfaceLight,
+        body: const Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
+        backgroundColor: isDark ? palette.surfaceDark : palette.surfaceLight,
         appBar: AppBar(),
-        body: Center(child: Text('Erreur : $err')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Erreur : $err',
+              style: GoogleFonts.inter(color: AppTheme.error),
+            ),
+          ),
+        ),
       ),
       data: (book) {
         if (book == null) {
           return Scaffold(
+            backgroundColor: isDark ? palette.surfaceDark : palette.surfaceLight,
             appBar: AppBar(),
-            body: const EmptyState(
-              emoji: '😕',
-              title: 'Livre introuvable',
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('😕', style: TextStyle(fontSize: 48)),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Livre introuvable',
+                      style: GoogleFonts.outfit(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? palette.textOnDark : palette.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
         }
 
         final sessionsList = sessionsAsync.valueOrNull ?? [];
+        final pagesRead = pagesReadAsync.valueOrNull ?? 0;
+        final remainingPages = remainingPagesAsync.valueOrNull;
+        final activeSession = activeSessionAsync.valueOrNull;
 
         return Scaffold(
-          backgroundColor: isDark ? AppTheme.surfaceDark : AppTheme.surfaceLight,
+          backgroundColor: isDark ? palette.surfaceDark : palette.surfaceLight,
           body: CustomScrollView(
             slivers: [
               // ========== AppBar ==========
               SliverAppBar(
                 expandedHeight: 0,
                 pinned: true,
-                backgroundColor: isDark ? AppTheme.surfaceDark : Colors.white,
+                backgroundColor:
+                    isDark ? palette.surfaceDark : Colors.white,
                 surfaceTintColor: Colors.transparent,
                 leading: IconButton(
                   icon: Icon(
                     Icons.arrow_back_rounded,
-                    color: isDark ? Colors.white : AppTheme.textPrimary,
+                    color: isDark ? Colors.white : palette.textPrimary,
                   ),
                   onPressed: () => Navigator.pop(context),
                 ),
@@ -114,14 +154,14 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
                   style: GoogleFonts.outfit(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : AppTheme.textPrimary,
+                    color: isDark ? Colors.white : palette.textPrimary,
                   ),
                 ),
                 actions: [
                   PopupMenuButton<ReadingStatus>(
                     icon: Icon(
                       Icons.more_vert_rounded,
-                      color: isDark ? Colors.white70 : AppTheme.textSecondary,
+                      color: isDark ? Colors.white70 : palette.textSecondary,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -161,6 +201,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
                       const PopupMenuDivider(),
                       PopupMenuItem(
                         value: null,
+                        onTap: () => _confirmDelete(book),
                         child: Row(
                           children: [
                             Icon(
@@ -194,34 +235,54 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
                     // ---- 1. Couverture ----
                     FadeTransition(
                       opacity: _fadeAnimation,
-                      child: _BookCover(book: book),
+                      child: _BookCover(book: book, palette: palette),
                     ),
                     const SizedBox(height: 24),
 
                     // ---- 2. Titre + Auteur + Statut ----
                     FadeTransition(
                       opacity: _fadeAnimation,
-                      child: _TitleSection(book: book),
+                      child: _TitleSection(book: book, palette: palette),
                     ),
                     const SizedBox(height: 24),
 
                     // ---- 3. Grille d'infos 2×2 ----
                     FadeTransition(
                       opacity: _fadeAnimation,
-                      child: _InfoGrid(book: book),
+                      child: _InfoGrid(book: book, palette: palette),
                     ),
                     const SizedBox(height: 24),
 
-                    // ---- 4. Description ----
+                    // ---- 4. Progression (pages restantes) ----
+                    if (book.pageCount != null) ...[
+                      FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: _ProgressSection(
+                          pagesRead: pagesRead,
+                          pageCount: book.pageCount!,
+                          remainingPages: remainingPages,
+                          palette: palette,
+                          isDark: isDark,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // ---- 5. Description ----
                     if (book.description != null &&
                         book.description!.isNotEmpty) ...[
-                      _SectionHeader(title: 'Description'),
+                      _SectionHeader(
+                        title: 'Description',
+                        palette: palette,
+                      ),
                       const SizedBox(height: 10),
                       FadeTransition(
                         opacity: _fadeAnimation,
                         child: _DescriptionCard(
                           description: book.description!,
                           isExpanded: _descriptionExpanded,
+                          isDark: isDark,
+                          palette: palette,
                           onToggle: () {
                             setState(() {
                               _descriptionExpanded = !_descriptionExpanded;
@@ -232,43 +293,70 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
                       const SizedBox(height: 24),
                     ],
 
-                    // ---- 5. Catégories ----
+                    // ---- 6. Catégories ----
                     if (book.categories.isNotEmpty) ...[
-                      _SectionHeader(title: 'Catégories'),
-                      const SizedBox(height: 10),
-                      FadeTransition(
-                        opacity: _fadeAnimation,
-                        child: _CategoryChips(categories: book.categories),
+                      _SectionHeader(
+                        title: 'Catégories',
+                        palette: palette,
                       ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // ---- 6. Note personnelle (si terminé) ----
-                    if (book.status == ReadingStatus.finished) ...[
-                      _SectionHeader(title: 'Ma note'),
                       const SizedBox(height: 10),
                       FadeTransition(
                         opacity: _fadeAnimation,
-                        child: _StarRating(
-                          rating: _pendingRating ?? book.myRating ?? 0,
-                          onChanged: (rating) {
-                            setState(() => _pendingRating = rating);
-                            _updateRating(book.id, rating);
-                          },
+                        child: _CategoryChips(
+                          categories: book.categories,
+                          palette: palette,
+                          isDark: isDark,
                         ),
                       ),
                       const SizedBox(height: 24),
                     ],
 
-                    // ---- 7. Sessions associées ----
+                    // ---- 7. Note par étoiles (TOUS les livres) ----
+                    _SectionHeader(
+                      title: 'Ma note',
+                      palette: palette,
+                    ),
+                    const SizedBox(height: 10),
+                    FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: _StarRating(
+                        rating: _pendingRating ?? book.myRating ?? 0,
+                        palette: palette,
+                        onChanged: (rating) {
+                          setState(() => _pendingRating = rating);
+                          _updateRating(book.id, rating);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ---- 8. Section session ----
+                    _SectionHeader(
+                      title: 'Session de lecture',
+                      palette: palette,
+                    ),
+                    const SizedBox(height: 10),
+                    FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: _SessionActionSection(
+                        activeSession: activeSession,
+                        bookId: book.id,
+                        palette: palette,
+                        isDark: isDark,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ---- 9. Sessions associées ----
                     _SectionHeader(
                       title: 'Séances de lecture',
+                      palette: palette,
                       trailing: sessionsList.isNotEmpty
                           ? Text(
                               '${sessionsList.length} séance${sessionsList.length > 1 ? 's' : ''}',
                               style: GoogleFonts.inter(
                                 fontSize: 13,
-                                color: AppTheme.textSecondary,
+                                color: palette.textSecondary,
                               ),
                             )
                           : null,
@@ -279,6 +367,8 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
                       child: _SessionList(
                         sessionsAsync: sessionsAsync,
                         bookTitle: book.title,
+                        palette: palette,
+                        isDark: isDark,
                       ),
                     ),
                     const SizedBox(height: 100),
@@ -288,17 +378,13 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
             ],
           ),
 
-          // ========== Bouton d'action flottant en bas ==========
+          // ========== Bouton "Lire" toujours visible en bas ==========
           bottomNavigationBar: _BottomActionBar(
             book: book,
-            onStartReading: () {
-              Navigator.pushNamed(context, '/session/${book.id}');
-            },
-            onMarkFinished: () {
-              _updateStatus(book, ReadingStatus.finished);
-            },
-            onRateBook: () {
-              // Défile jusqu'à la section note
+            palette: palette,
+            isDark: isDark,
+            onRead: () {
+              Navigator.pushNamed(context, AppRouter.session(book.id));
             },
           ),
         );
@@ -352,15 +438,68 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
     db.updateBook(bookId, {'my_rating': rating});
     ref.invalidate(currentBookProvider(bookId));
   }
+
+  void _confirmDelete(Book book) {
+    final palette = ref.read(themePaletteProvider);
+    final isDark = ref.read(isDarkModeProvider);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? palette.surfaceCardDark : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Supprimer ce livre ?',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.w600,
+            color: isDark ? palette.textOnDark : palette.textPrimary,
+          ),
+        ),
+        content: Text(
+          'Toutes les séances associées seront également supprimées.',
+          style: GoogleFonts.inter(
+            color: palette.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Annuler',
+              style: GoogleFonts.inter(color: palette.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              final db = ref.read(databaseProvider);
+              db.deleteBook(book.id);
+              ref.invalidate(allBooksProvider);
+              ref.invalidate(booksByStatusProvider);
+              ref.invalidate(currentBookProvider(book.id));
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            child: Text(
+              'Supprimer',
+              style: GoogleFonts.inter(
+                color: AppTheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ============================================================
-// Couverture
+// Couverture avec Hero
 // ============================================================
 class _BookCover extends StatelessWidget {
   final Book book;
+  final ThemePalette palette;
 
-  const _BookCover({required this.book});
+  const _BookCover({required this.book, required this.palette});
 
   @override
   Widget build(BuildContext context) {
@@ -385,9 +524,10 @@ class _BookCover extends StatelessWidget {
               ? CachedNetworkImage(
                   imageUrl: book.coverUrl!,
                   fit: BoxFit.cover,
-                  errorWidget: (_, _, _) => _CoverPlaceholder(),
+                  errorWidget: (_, _, _) =>
+                      _CoverPlaceholder(palette: palette),
                 )
-              : const _CoverPlaceholder(),
+              : _CoverPlaceholder(palette: palette),
         ),
       ),
     );
@@ -395,7 +535,9 @@ class _BookCover extends StatelessWidget {
 }
 
 class _CoverPlaceholder extends StatelessWidget {
-  const _CoverPlaceholder();
+  final ThemePalette palette;
+
+  const _CoverPlaceholder({required this.palette});
 
   @override
   Widget build(BuildContext context) {
@@ -405,13 +547,14 @@ class _CoverPlaceholder extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppTheme.primary.withValues(alpha: 0.6),
-            AppTheme.accent.withValues(alpha: 0.4),
+            palette.primary.withValues(alpha: 0.6),
+            palette.accent.withValues(alpha: 0.4),
           ],
         ),
       ),
       child: const Center(
-        child: Icon(Icons.menu_book_rounded, size: 56, color: Colors.white38),
+        child:
+            Icon(Icons.menu_book_rounded, size: 56, color: Colors.white38),
       ),
     );
   }
@@ -422,38 +565,34 @@ class _CoverPlaceholder extends StatelessWidget {
 // ============================================================
 class _TitleSection extends StatelessWidget {
   final Book book;
+  final ThemePalette palette;
 
-  const _TitleSection({required this.book});
+  const _TitleSection({required this.book, required this.palette});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Titre
         Text(
           book.title,
           style: GoogleFonts.outfit(
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: palette.textPrimary,
             height: 1.2,
           ),
         ),
-        const SizedBox(height: 6),
-
-        // Auteur
+        const SizedBox(height: 8),
         Text(
           book.author,
           style: GoogleFonts.inter(
-            fontSize: 15,
-            color: AppTheme.textSecondary,
+            fontSize: 16,
+            color: palette.textSecondary,
             height: 1.3,
           ),
         ),
-        const SizedBox(height: 14),
-
-        // Badge de statut
+        const SizedBox(height: 16),
         _StatusBadge(status: book.status),
       ],
     );
@@ -461,14 +600,14 @@ class _TitleSection extends StatelessWidget {
 }
 
 // ============================================================
-// Badge de statut coloré
+// Couleurs et libellés de statut
 // ============================================================
 Color _statusColor(ReadingStatus status) {
   return switch (status) {
-    ReadingStatus.reading => AppTheme.accent, // terracotta
-    ReadingStatus.finished => AppTheme.success, // green
-    ReadingStatus.wantToRead => AppTheme.textSecondary, // grey
-    ReadingStatus.abandoned => AppTheme.error, // red
+    ReadingStatus.reading => const Color(0xFFD97A60), // terracotta light
+    ReadingStatus.finished => const Color(0xFF6B8E4E), // muted green
+    ReadingStatus.wantToRead => const Color(0xFF8B6F5C), // brown grey
+    ReadingStatus.abandoned => const Color(0xFFEF4444), // red
   };
 }
 
@@ -528,12 +667,12 @@ class _StatusBadge extends StatelessWidget {
 // ============================================================
 class _InfoGrid extends StatelessWidget {
   final Book book;
+  final ThemePalette palette;
 
-  const _InfoGrid({required this.book});
+  const _InfoGrid({required this.book, required this.palette});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final items = <_InfoItem>[
       _InfoItem(
         icon: Icons.auto_stories_rounded,
@@ -558,9 +697,10 @@ class _InfoGrid extends StatelessWidget {
     ];
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceCard : Colors.white,
+        color: palette.surfaceCardLight,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -575,12 +715,12 @@ class _InfoGrid extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 2.8,
-          crossAxisSpacing: 8,
+          childAspectRatio: 3.2,
+          crossAxisSpacing: 12,
           mainAxisSpacing: 8,
         ),
         itemCount: items.length,
-        itemBuilder: (_, i) => _InfoTile(item: items[i]),
+        itemBuilder: (_, i) => _InfoTile(item: items[i], palette: palette),
       ),
     );
   }
@@ -600,14 +740,15 @@ class _InfoItem {
 
 class _InfoTile extends StatelessWidget {
   final _InfoItem item;
+  final ThemePalette palette;
 
-  const _InfoTile({required this.item});
+  const _InfoTile({required this.item, required this.palette});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(item.icon, size: 18, color: AppTheme.textSecondary),
+        Icon(item.icon, size: 18, color: palette.textSecondary),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -621,15 +762,15 @@ class _InfoTile extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface,
+                  color: palette.textPrimary,
                 ),
               ),
-              const SizedBox(height: 1),
+              const SizedBox(height: 2),
               Text(
                 item.label,
                 style: GoogleFonts.inter(
                   fontSize: 11,
-                  color: AppTheme.textSecondary,
+                  color: palette.textSecondary,
                 ),
               ),
             ],
@@ -641,13 +782,106 @@ class _InfoTile extends StatelessWidget {
 }
 
 // ============================================================
+// Progression — pages restantes + barre
+// ============================================================
+class _ProgressSection extends StatelessWidget {
+  final int pagesRead;
+  final int pageCount;
+  final int? remainingPages;
+  final ThemePalette palette;
+  final bool isDark;
+
+  const _ProgressSection({
+    required this.pagesRead,
+    required this.pageCount,
+    required this.remainingPages,
+    required this.palette,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = pageCount > 0 ? (pagesRead / pageCount).clamp(0.0, 1.0) : 0.0;
+    final rest = remainingPages ?? (pageCount - pagesRead).clamp(0, pageCount);
+    final couleur = palette.primary;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? palette.surfaceCardDark : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Texte de progression
+          Text(
+            '$pagesRead / $pageCount pages lues',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$rest restantes',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: palette.textSecondary,
+                ),
+              ),
+              Text(
+                '${(progress * 100).toInt()}%',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: couleur,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Barre de progression
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: palette.textSecondary.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(couleur),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
 // Section header
 // ============================================================
 class _SectionHeader extends StatelessWidget {
   final String title;
   final Widget? trailing;
+  final ThemePalette palette;
 
-  const _SectionHeader({required this.title, this.trailing});
+  const _SectionHeader({
+    required this.title,
+    required this.palette,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -658,7 +892,7 @@ class _SectionHeader extends StatelessWidget {
           style: GoogleFonts.outfit(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: palette.textPrimary,
           ),
         ),
         if (trailing != null) ...[
@@ -671,31 +905,34 @@ class _SectionHeader extends StatelessWidget {
 }
 
 // ============================================================
-// Description (expandable/collapsible)
+// Description (expandable / collapsible)
 // ============================================================
 class _DescriptionCard extends StatelessWidget {
   final String description;
   final bool isExpanded;
+  final bool isDark;
+  final ThemePalette palette;
   final VoidCallback onToggle;
 
   const _DescriptionCard({
     required this.description,
     required this.isExpanded,
+    required this.isDark,
+    required this.palette,
     required this.onToggle,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     const int maxLines = 5;
-    final isLong = description.split('\n').length > maxLines ||
-        description.length > 250;
+    final bool isLong =
+        description.split('\n').length > maxLines || description.length > 250;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceCard : Colors.white,
+        color: isDark ? palette.surfaceCardDark : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -717,7 +954,7 @@ class _DescriptionCard extends StatelessWidget {
               description,
               style: GoogleFonts.inter(
                 fontSize: 14,
-                color: AppTheme.textSecondary,
+                color: palette.textSecondary,
                 height: 1.6,
               ),
             ),
@@ -727,7 +964,7 @@ class _DescriptionCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
                 fontSize: 14,
-                color: AppTheme.textSecondary,
+                color: palette.textSecondary,
                 height: 1.6,
               ),
             ),
@@ -743,7 +980,7 @@ class _DescriptionCard extends StatelessWidget {
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.primary,
+                      color: palette.primary,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -752,7 +989,7 @@ class _DescriptionCard extends StatelessWidget {
                         ? Icons.keyboard_arrow_up_rounded
                         : Icons.keyboard_arrow_down_rounded,
                     size: 18,
-                    color: AppTheme.primary,
+                    color: palette.primary,
                   ),
                 ],
               ),
@@ -769,17 +1006,22 @@ class _DescriptionCard extends StatelessWidget {
 // ============================================================
 class _CategoryChips extends StatelessWidget {
   final List<String> categories;
+  final ThemePalette palette;
+  final bool isDark;
 
-  const _CategoryChips({required this.categories});
+  const _CategoryChips({
+    required this.categories,
+    required this.palette,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceCard : Colors.white,
+        color: isDark ? palette.surfaceCardDark : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -794,9 +1036,10 @@ class _CategoryChips extends StatelessWidget {
         runSpacing: 8,
         children: categories.map((cat) {
           return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.08),
+              color: palette.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
@@ -804,7 +1047,7 @@ class _CategoryChips extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: AppTheme.primary,
+                color: palette.primary,
               ),
             ),
           );
@@ -815,22 +1058,26 @@ class _CategoryChips extends StatelessWidget {
 }
 
 // ============================================================
-// Étoiles de notation (1-5)
+// Étoiles de notation (1-5) — visible pour TOUS les livres
 // ============================================================
 class _StarRating extends StatelessWidget {
   final double rating;
+  final ThemePalette palette;
   final ValueChanged<double>? onChanged;
 
-  const _StarRating({required this.rating, this.onChanged});
+  const _StarRating({
+    required this.rating,
+    required this.palette,
+    this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? AppTheme.surfaceCard
-            : Colors.white,
+        color: palette.surfaceCardLight,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -845,12 +1092,13 @@ class _StarRating extends StatelessWidget {
         children: List.generate(5, (i) {
           final starValue = i + 1.0;
           final filled = starValue <= rating;
-          final halfFilled = !filled && (starValue - 0.5) <= rating;
+          final halfFilled =
+              !filled && (starValue - 0.5) <= rating;
 
           return GestureDetector(
             onTap: onChanged != null ? () => onChanged!(starValue) : null,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               child: AnimatedScale(
                 scale: filled ? 1.1 : 1.0,
                 duration: const Duration(milliseconds: 200),
@@ -860,10 +1108,10 @@ class _StarRating extends StatelessWidget {
                       : halfFilled
                           ? Icons.star_half_rounded
                           : Icons.star_border_rounded,
-                  size: 32,
+                  size: 34,
                   color: filled
-                      ? AppTheme.warning
-                      : AppTheme.textSecondary.withValues(alpha: 0.3),
+                      ? const Color(0xFFD97A60)
+                      : palette.textSecondary.withValues(alpha: 0.3),
                 ),
               ),
             ),
@@ -875,14 +1123,187 @@ class _StarRating extends StatelessWidget {
 }
 
 // ============================================================
+// Section session : lancer ou reprendre une session
+// ============================================================
+class _SessionActionSection extends ConsumerWidget {
+  final ReadingSession? activeSession;
+  final String bookId;
+  final ThemePalette palette;
+  final bool isDark;
+
+  const _SessionActionSection({
+    required this.activeSession,
+    required this.bookId,
+    required this.palette,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasActive = activeSession != null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? palette.surfaceCardDark : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          if (hasActive) ...[
+            // Infos de la session active
+            Row(
+              children: [
+                Icon(
+                  Icons.timer_rounded,
+                  size: 18,
+                  color: palette.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Session active',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: palette.primary,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6B8E4E).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'En cours',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF6B8E4E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (activeSession!.startPage != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.auto_stories_rounded,
+                      size: 14, color: palette.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Débuté page ${activeSession!.startPage}',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: palette.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(context, AppRouter.session(bookId));
+                },
+                icon: const Icon(Icons.play_circle_fill_rounded, size: 22),
+                label: const Text('Reprendre la lecture'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: palette.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: GoogleFonts.outfit(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            // Aucune session active
+            Row(
+              children: [
+                Icon(
+                  Icons.play_circle_outline_rounded,
+                  size: 22,
+                  color: palette.textSecondary,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Pas de session en cours',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Lancer une nouvelle session
+                  final db = ref.read(databaseProvider);
+                  db.startSession(bookId);
+                  ref.invalidate(activeBookSessionProvider(bookId));
+                  ref.invalidate(bookSessionsProvider(bookId));
+                  Navigator.pushNamed(context, AppRouter.session(bookId));
+                },
+                icon: const Icon(Icons.rocket_launch_rounded, size: 20),
+                label: const Text('Lancer une session'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: palette.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: GoogleFonts.outfit(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
 // Liste des sessions
 // ============================================================
 class _SessionList extends ConsumerWidget {
   final AsyncValue<List<ReadingSession>> sessionsAsync;
   final String? bookTitle;
+  final ThemePalette palette;
+  final bool isDark;
 
   const _SessionList({
     required this.sessionsAsync,
+    required this.palette,
+    required this.isDark,
     this.bookTitle,
   });
 
@@ -897,17 +1318,19 @@ class _SessionList extends ConsumerWidget {
       ),
       error: (err, _) => Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('Erreur : $err'),
+        child: Text(
+          'Erreur : $err',
+          style: GoogleFonts.inter(color: AppTheme.error),
+        ),
       ),
       data: (sessions) {
         if (sessions.isEmpty) {
           return Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+            padding:
+                const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
             decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? AppTheme.surfaceCard
-                  : Colors.white,
+              color: isDark ? palette.surfaceCardDark : Colors.white,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -919,7 +1342,7 @@ class _SessionList extends ConsumerWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -928,7 +1351,7 @@ class _SessionList extends ConsumerWidget {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: AppTheme.textSecondary,
+                    color: palette.textSecondary,
                   ),
                 ),
               ],
@@ -942,6 +1365,7 @@ class _SessionList extends ConsumerWidget {
             child: _SessionTile(
               session: s,
               bookTitle: bookTitle,
+              palette: palette,
             ),
           )).toList(),
         );
@@ -956,12 +1380,16 @@ class _SessionList extends ConsumerWidget {
 class _SessionTile extends StatelessWidget {
   final ReadingSession session;
   final String? bookTitle;
+  final ThemePalette palette;
 
-  const _SessionTile({required this.session, this.bookTitle});
+  const _SessionTile({
+    required this.session,
+    required this.palette,
+    this.bookTitle,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final duration = session.durationSeconds != null
         ? Duration(seconds: session.durationSeconds!)
         : null;
@@ -976,7 +1404,7 @@ class _SessionTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceCard : Colors.white,
+        color: palette.surfaceCardLight,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -994,11 +1422,11 @@ class _SessionTile extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              color: AppTheme.primary.withValues(alpha: 0.1),
+              color: palette.primary.withValues(alpha: 0.1),
             ),
             child: Icon(
               Icons.menu_book_rounded,
-              color: AppTheme.primary,
+              color: palette.primary,
               size: 22,
             ),
           ),
@@ -1013,33 +1441,32 @@ class _SessionTile extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    // Durée
                     Icon(Icons.schedule_rounded,
-                        size: 13, color: AppTheme.textSecondary),
+                        size: 13, color: palette.textSecondary),
                     const SizedBox(width: 4),
                     Text(
                       durStr,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AppTheme.textSecondary,
+                        color: palette.textSecondary,
                       ),
                     ),
                     if (pagesStr != null) ...[
                       const SizedBox(width: 14),
                       Icon(Icons.auto_stories_rounded,
-                          size: 13, color: AppTheme.textSecondary),
+                          size: 13, color: palette.textSecondary),
                       const SizedBox(width: 4),
                       Text(
                         pagesStr,
                         style: GoogleFonts.inter(
                           fontSize: 12,
-                          color: AppTheme.textSecondary,
+                          color: palette.textSecondary,
                         ),
                       ),
                     ],
@@ -1054,7 +1481,7 @@ class _SessionTile extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textSecondary,
+              color: palette.textSecondary,
             ),
           ),
         ],
@@ -1095,25 +1522,23 @@ class _SessionTile extends StatelessWidget {
 }
 
 // ============================================================
-// Barre d'action en bas (contextuelle selon le statut)
+// Barre d'action en bas — toujours "Lire"
 // ============================================================
 class _BottomActionBar extends StatelessWidget {
   final Book book;
-  final VoidCallback onStartReading;
-  final VoidCallback onMarkFinished;
-  final VoidCallback onRateBook;
+  final ThemePalette palette;
+  final bool isDark;
+  final VoidCallback onRead;
 
   const _BottomActionBar({
     required this.book,
-    required this.onStartReading,
-    required this.onMarkFinished,
-    required this.onRateBook,
+    required this.palette,
+    required this.isDark,
+    required this.onRead,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       padding: EdgeInsets.only(
         left: 20,
@@ -1122,7 +1547,7 @@ class _BottomActionBar extends StatelessWidget {
         bottom: MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceDark : Colors.white,
+        color: isDark ? palette.surfaceDark : Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -1133,80 +1558,25 @@ class _BottomActionBar extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: _buildButton(context),
-      ),
-    );
-  }
-
-  Widget _buildButton(BuildContext context) {
-    switch (book.status) {
-      case ReadingStatus.wantToRead:
-        return _ActionButton(
-          icon: Icons.play_arrow_rounded,
-          label: 'Commencer la lecture',
-          color: AppTheme.primary,
-          onPressed: onStartReading,
-        );
-
-      case ReadingStatus.reading:
-        return _ActionButton(
-          icon: Icons.check_rounded,
-          label: 'Marquer comme terminé',
-          color: AppTheme.success,
-          onPressed: onMarkFinished,
-        );
-
-      case ReadingStatus.finished:
-        return _ActionButton(
-          icon: Icons.star_rounded,
-          label: 'Noter ce livre',
-          color: AppTheme.warning,
-          onPressed: onRateBook,
-        );
-
-      case ReadingStatus.abandoned:
-        return _ActionButton(
-          icon: Icons.play_arrow_rounded,
-          label: 'Reprendre la lecture',
-          color: AppTheme.primary,
-          onPressed: onStartReading,
-        );
-    }
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onPressed;
-
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 22),
-        label: Text(label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          textStyle: GoogleFonts.outfit(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: onRead,
+            icon: const Icon(Icons.menu_book_rounded, size: 22),
+            label: const Text('Lire'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: palette.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              textStyle: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ),

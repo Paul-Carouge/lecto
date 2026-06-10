@@ -162,6 +162,36 @@ Future<List<Map<String, dynamic>>> bookSearch(BookSearchRef ref, String query) a
 }
 
 // ============================================================
+// Total pages read for a book
+// ============================================================
+
+/// Provides the total number of pages read across all sessions for a [bookId].
+@Riverpod(keepAlive: true)
+Future<int> bookPagesRead(BookPagesReadRef ref, String bookId) async {
+  final db = ref.watch(databaseProvider);
+  return db.getTotalPagesReadForBook(bookId);
+}
+
+/// Provides the number of pages remaining for a book (pageCount - pagesRead).
+/// Returns null if no page count is set.
+@Riverpod(keepAlive: true)
+Future<int?> bookRemainingPages(BookRemainingPagesRef ref, String bookId) async {
+  final db = ref.watch(databaseProvider);
+  final book = db.getBook(bookId);
+  if (book == null || book.pageCount == null) return null;
+  final pagesRead = db.getTotalPagesReadForBook(bookId);
+  final remaining = book.pageCount! - pagesRead;
+  return remaining > 0 ? remaining : 0;
+}
+
+/// Provides the active (unfinished) reading session for a book, if any.
+@Riverpod(keepAlive: true)
+Future<ReadingSession?> activeBookSession(ActiveBookSessionRef ref, String bookId) async {
+  final db = ref.watch(databaseProvider);
+  return db.getActiveSessionForBook(bookId);
+}
+
+// ============================================================
 // Exception
 // ============================================================
 

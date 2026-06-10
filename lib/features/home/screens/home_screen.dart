@@ -10,8 +10,10 @@ import 'package:lecto/core/theme/theme_provider.dart';
 import 'package:lecto/core/theme/themes.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
 import 'package:lecto/features/sessions/providers/session_providers.dart';
-import 'package:lecto/features/recommendations/providers/recommendation_providers.dart';
 import 'package:lecto/features/stats/providers/stats_providers.dart';
+import 'package:lecto/features/recommendations/providers/recommendation_providers.dart';
+import 'package:lecto/features/settings/providers/settings_providers.dart'
+    hide isDarkModeProvider;
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,7 +26,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Invalidate providers after first frame to ensure fresh data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref.invalidate(allBooksProvider);
@@ -41,6 +42,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isDark = ref.watch(isDarkModeProvider);
     final readingBooks = ref.watch(booksByStatusProvider(ReadingStatus.reading));
     final allSessions = ref.watch(recentSessionsProvider);
+    final statsAsync = ref.watch(bookshelfStatsProvider);
 
     final bg = isDark ? palette.surfaceDark : palette.surfaceLight;
     final surface = isDark ? palette.surfaceCardDark : palette.surfaceCardLight;
@@ -57,34 +59,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.invalidate(allBooksProvider);
             ref.invalidate(booksByStatusProvider);
             ref.invalidate(recentSessionsProvider);
+            ref.invalidate(bookshelfStatsProvider);
           },
           color: palette.primary,
           child: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header
+                      // ── Greeting header ──
                       _GreetingHeader(palette: palette, isDark: isDark),
                       const SizedBox(height: 32),
 
-                      // Stats row
-                      readingBooks.when(
-                        data: (books) => _StatsRow(
-                          bookCount: ref.watch(allBooksProvider).valueOrNull?.length ?? 0,
-                          readingCount: books.length,
-                          palette: palette,
-                          isDark: isDark,
-                        ),
-                        loading: () => const SizedBox(height: 80),
-                        error: (_, __) => const SizedBox.shrink(),
+                      // ── Full-width stats row ──
+                      _StatsRow(
+                        statsAsync: statsAsync,
+                        readingCount:
+                            readingBooks.valueOrNull?.length ?? 0,
+                        palette: palette,
+                        isDark: isDark,
                       ),
                       const SizedBox(height: 32),
 
-                      // Currently reading
+                      // ── Currently reading ──
                       Text(
                         'En cours',
                         style: GoogleFonts.outfit(
@@ -121,7 +121,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Recent sessions
+                      // ── Recent sessions ──
                       Text(
                         'Dernières sessions',
                         style: GoogleFonts.outfit(
@@ -135,7 +135,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         data: (sessions) {
                           if (sessions.isEmpty) {
                             return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 24),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 24),
                               child: Center(
                                 child: Text(
                                   'Commencez votre première session',
@@ -151,8 +152,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             height: 100,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
-                              itemCount: sessions.length > 5 ? 5 : sessions.length,
-                              separatorBuilder: (_, __) => const SizedBox(width: 10),
+                              itemCount: sessions.length > 5
+                                  ? 5
+                                  : sessions.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 10),
                               itemBuilder: (context, i) {
                                 final s = sessions[i];
                                 return _SessionMiniCard(
@@ -170,79 +174,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Recommendations
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            Navigator.pushNamed(context, AppRouter.recommendations);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  palette.primary.withValues(alpha: 0.08),
-                                  palette.primaryLight.withValues(alpha: 0.04),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: palette.primary.withValues(alpha: 0.12),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: palette.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(
-                                    Icons.auto_awesome_rounded,
-                                    color: palette.primary,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Recommandations',
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                          color: onSurface,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Basées sur vos lectures',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          color: muted,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.arrow_forward_ios_rounded,
-                                  size: 14,
-                                  color: palette.primary,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Quick actions
+                      // ── Quick actions 2×2 grid ──
                       Text(
                         'Actions',
                         style: GoogleFonts.outfit(
@@ -252,7 +184,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _QuickActions(palette: palette, muted: muted),
+                      _QuickActionsGrid(
+                        palette: palette,
+                        onSurface: onSurface,
+                        muted: muted,
+                      ),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -266,15 +202,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-// ── Widgets ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// Greeting Header
+// ═══════════════════════════════════════════════════════════════
 
-class _GreetingHeader extends StatelessWidget {
+class _GreetingHeader extends ConsumerWidget {
   final ThemePalette palette;
   final bool isDark;
-  const _GreetingHeader({required this.palette, required this.isDark});
+
+  const _GreetingHeader({
+    required this.palette,
+    required this.isDark,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final hour = DateTime.now().hour;
     final greeting = hour < 12
         ? 'Bonjour'
@@ -282,37 +224,40 @@ class _GreetingHeader extends StatelessWidget {
             ? 'Bon après-midi'
             : 'Bonsoir';
 
+    final userName = ref.watch(userNameProvider).valueOrNull ?? '';
+    final displayText = userName.isNotEmpty ? '$greeting $userName' : greeting;
+
     return Row(
       children: [
         Container(
-          width: 44,
-          height: 44,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [palette.primary, palette.primaryLight],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Center(
-            child: Text(
-              'L',
-              style: GoogleFonts.outfit(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Icon(
+              Icons.auto_stories_rounded,
+              color: Colors.white,
+              size: 24,
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Text(
-          greeting,
-          style: GoogleFonts.outfit(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: isDark ? palette.textOnDark : palette.textPrimary,
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            displayText,
+            style: GoogleFonts.outfit(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+              color: isDark ? palette.textOnDark : palette.textPrimary,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -320,13 +265,18 @@ class _GreetingHeader extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Full‑width Stats Row — each stat fills an equal column
+// ═══════════════════════════════════════════════════════════════
+
 class _StatsRow extends StatelessWidget {
-  final int bookCount;
+  final AsyncValue<BookshelfStats> statsAsync;
   final int readingCount;
   final ThemePalette palette;
   final bool isDark;
+
   const _StatsRow({
-    required this.bookCount,
+    required this.statsAsync,
     required this.readingCount,
     required this.palette,
     required this.isDark,
@@ -334,65 +284,100 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final stats = statsAsync.valueOrNull ?? const BookshelfStats();
+
     return Row(
       children: [
-        _StatBadge(
-          icon: Icons.menu_book_rounded,
-          label: '$bookCount',
-          sub: 'livres',
-          color: palette.primary,
+        Expanded(
+          child: _StatCard(
+            icon: Icons.menu_book_rounded,
+            value: '${stats.totalBooks}',
+            label: 'livres',
+            color: palette.primary,
+            isDark: isDark,
+          ),
         ),
-        const SizedBox(width: 12),
-        _StatBadge(
-          icon: Icons.auto_stories_rounded,
-          label: '$readingCount',
-          sub: 'en cours',
-          color: palette.accent,
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.auto_stories_rounded,
+            value: '$readingCount',
+            label: 'en cours',
+            color: palette.accent,
+            isDark: isDark,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.chrome_reader_mode_rounded,
+            value: '${stats.totalPages}',
+            label: 'pages',
+            color: palette.primaryLight,
+            isDark: isDark,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            icon: Icons.local_fire_department_rounded,
+            value: '${stats.currentStreak}',
+            label: 'jours',
+            color: const Color(0xFFE85D3A),
+            isDark: isDark,
+          ),
         ),
       ],
     );
   }
 }
 
-class _StatBadge extends StatelessWidget {
+/// A single compact stat card used inside the full‑width stats row.
+class _StatCard extends StatelessWidget {
   final IconData icon;
+  final String value;
   final String label;
-  final String sub;
   final Color color;
+  final bool isDark;
 
-  const _StatBadge({
+  const _StatCard({
     required this.icon,
+    required this.value,
     required this.label,
-    required this.sub,
     required this.color,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: isDark
+            ? color.withValues(alpha: 0.1)
+            : color.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(width: 8),
+          Icon(icon, size: 22, color: color),
+          const SizedBox(height: 6),
           Text(
-            label,
+            value,
             style: GoogleFonts.outfit(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: color,
+              height: 1.1,
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(height: 2),
           Text(
-            sub,
+            label,
             style: GoogleFonts.inter(
-              fontSize: 13,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
               color: color.withValues(alpha: 0.7),
             ),
           ),
@@ -402,11 +387,16 @@ class _StatBadge extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Currently Reading Card  (full‑width)
+// ═══════════════════════════════════════════════════════════════
+
 class _ReadingCard extends StatelessWidget {
   final Book book;
   final ThemePalette palette;
   final Color surface;
   final bool isDark;
+
   const _ReadingCard({
     required this.book,
     required this.palette,
@@ -418,11 +408,16 @@ class _ReadingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final coverUrl = book.coverUrl;
     final hasCover = coverUrl != null && coverUrl.isNotEmpty;
+    final progress = book.pageCount != null && book.pageCount! > 0
+        ? 0.35 // placeholder — computed from bookPagesReadProvider in a future iteration
+        : 0.0;
 
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, AppRouter.bookDetail(book.id)),
+      onTap: () =>
+          Navigator.pushNamed(context, AppRouter.bookDetail(book.id)),
       onLongPressStart: (_) => HapticFeedback.lightImpact(),
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: surface,
@@ -437,14 +432,16 @@ class _ReadingCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: SizedBox(
-                width: 64,
-                height: 90,
+                width: 72,
+                height: 104,
                 child: hasCover
                     ? CachedNetworkImage(
                         imageUrl: coverUrl,
                         fit: BoxFit.cover,
-                        placeholder: (_, __) => _CoverPlaceholder(palette: palette),
-                        errorWidget: (_, __, ___) => _CoverPlaceholder(palette: palette),
+                        placeholder: (_, __) =>
+                            _CoverPlaceholder(palette: palette),
+                        errorWidget: (_, __, ___) =>
+                            _CoverPlaceholder(palette: palette),
                       )
                     : _CoverPlaceholder(palette: palette),
               ),
@@ -462,7 +459,8 @@ class _ReadingCard extends StatelessWidget {
                     style: GoogleFonts.outfit(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? palette.textOnDark : palette.textPrimary,
+                      color:
+                          isDark ? palette.textOnDark : palette.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -478,26 +476,24 @@ class _ReadingCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Progress
-                  Container(
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: palette.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: 0.35,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [palette.primary, palette.primaryLight],
-                          ),
-                          borderRadius: BorderRadius.circular(2),
+                  // Progress bar
+                  _ProgressBar(
+                    palette: palette,
+                    progress: progress,
+                  ),
+                  if (book.pageCount != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        '${(progress * 100).round()}% · ${book.pageCount} pages',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: isDark
+                              ? palette.textOnDark.withValues(alpha: 0.4)
+                              : palette.textSecondary.withValues(alpha: 0.7),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -514,11 +510,49 @@ class _ReadingCard extends StatelessWidget {
   }
 }
 
+class _ProgressBar extends StatelessWidget {
+  final ThemePalette palette;
+  final double progress;
+
+  const _ProgressBar({
+    required this.palette,
+    required this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 6,
+      decoration: BoxDecoration(
+        color: palette.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: progress.clamp(0.0, 1.0),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [palette.primary, palette.primaryLight],
+            ),
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Empty Reading Card  (full‑width)
+// ═══════════════════════════════════════════════════════════════
+
 class _EmptyReadingCard extends StatelessWidget {
   final ThemePalette palette;
   final Color surface;
   final Color onSurface;
   final Color muted;
+
   const _EmptyReadingCard({
     required this.palette,
     required this.surface,
@@ -529,8 +563,10 @@ class _EmptyReadingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, AppRouter.addBook),
+      onTap: () =>
+          Navigator.pushNamedAndRemoveUntil(context, '/', (route) => route.isFirst),
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: surface,
@@ -582,8 +618,13 @@ class _EmptyReadingCard extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Cover Placeholder
+// ═══════════════════════════════════════════════════════════════
+
 class _CoverPlaceholder extends StatelessWidget {
   final ThemePalette palette;
+
   const _CoverPlaceholder({required this.palette});
 
   @override
@@ -599,11 +640,16 @@ class _CoverPlaceholder extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Session Mini Card  (horizontal scroll)
+// ═══════════════════════════════════════════════════════════════
+
 class _SessionMiniCard extends StatelessWidget {
   final ReadingSession session;
   final ThemePalette palette;
   final Color surface;
   final Color muted;
+
   const _SessionMiniCard({
     required this.session,
     required this.palette,
@@ -659,57 +705,83 @@ class _SessionMiniCard extends StatelessWidget {
   }
 }
 
-class _QuickActions extends StatelessWidget {
+// ═══════════════════════════════════════════════════════════════
+// Quick Actions Grid  (2 × 2)
+// ═══════════════════════════════════════════════════════════════
+
+class _QuickActionsGrid extends StatelessWidget {
   final ThemePalette palette;
+  final Color onSurface;
   final Color muted;
-  const _QuickActions({required this.palette, required this.muted});
+
+  const _QuickActionsGrid({
+    required this.palette,
+    required this.onSurface,
+    required this.muted,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 1.5,
       children: [
-        Expanded(
-          child: _ActionButton(
-            icon: Icons.add_rounded,
-            label: 'Ajouter un livre',
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.pushNamed(context, AppRouter.addBook);
-            },
-            primary: palette.primary,
-            muted: muted,
-          ),
+        _QuickActionTile(
+          icon: Icons.library_books_rounded,
+          label: 'Bibliothèque',
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.pushNamedAndRemoveUntil(context, '/', (route) => route.isFirst);
+          },
+          color: palette.primary,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _ActionButton(
-            icon: Icons.library_books_rounded,
-            label: 'Bibliothèque',
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.pushNamed(context, AppRouter.library);
-            },
-            primary: palette.primary,
-            muted: muted,
-          ),
+        _QuickActionTile(
+          icon: Icons.timer_outlined,
+          label: 'Session',
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.pushNamed(context, AppRouter.sessions);
+          },
+          color: palette.primaryLight,
+        ),
+        _QuickActionTile(
+          icon: Icons.insert_chart_rounded,
+          label: 'Stats',
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.pushNamedAndRemoveUntil(context, '/', (route) => route.isFirst);
+          },
+          color: palette.accent,
+        ),
+        _QuickActionTile(
+          icon: Icons.flag_rounded,
+          label: 'Objectifs',
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.pushNamed(context, AppRouter.goals);
+          },
+          color: palette.primary,
         ),
       ],
     );
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _QuickActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Color primary;
-  final Color muted;
-  const _ActionButton({
+  final Color color;
+
+  const _QuickActionTile({
     required this.icon,
     required this.label,
     required this.onTap,
-    required this.primary,
-    required this.muted,
+    required this.color,
   });
 
   @override
@@ -717,20 +789,22 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: primary.withValues(alpha: 0.15),
-          ),
-          borderRadius: BorderRadius.circular(14),
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: primary, size: 24),
-            const SizedBox(height: 6),
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
             Text(
               label,
-              style: GoogleFonts.inter(fontSize: 13, color: muted),
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
           ],
         ),
@@ -739,13 +813,19 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Shimmer Card  (full‑width)
+// ═══════════════════════════════════════════════════════════════
+
 class _ShimmerCard extends StatelessWidget {
   final Color surface;
+
   const _ShimmerCard({required this.surface});
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       height: 120,
       decoration: BoxDecoration(
         color: surface,

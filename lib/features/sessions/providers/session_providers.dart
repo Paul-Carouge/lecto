@@ -72,6 +72,9 @@ class ActiveSessionState {
     final diff = currentPage! - startPage!;
     return diff >= 0 ? diff : null;
   }
+
+  /// Computed alias for [pagesRead], accessible via the notifier.
+  int? get pagesReadFromState => pagesRead;
 }
 
 /// Provider for the active reading session.
@@ -183,6 +186,66 @@ class ActiveSession extends _$ActiveSession {
 
     state = const ActiveSessionState();
   }
+
+  /// Finishes the current session with a manually-specified page count.
+  ///
+  /// [pagesRead] is the exact number of pages the user read (required).
+  /// If [finishedBook] is `true`, the book's status is updated to `finished`
+  /// and its `dateFinished` is set to now.
+  ///
+  /// Uses [AppDatabase.updateSessionPages] to persist the data, then
+  /// invalidates all related providers and resets state.
+  void finishSession({required int pagesRead, bool finishedBook = false}) {
+    if (state.sessionId == null) return;
+
+    _timer?.cancel();
+
+    final db = ref.read(databaseProvider);
+    final bookId = state.bookId;
+
+    // Compute endPage from startPage + pagesRead if startPage is known
+    final int? endPage = state.startPage != null
+        ? state.startPage! + pagesRead
+        : null;
+
+    // Use the elapsed duration from the state
+    final int durationSeconds = state.elapsed.inSeconds;
+
+    // Persist via updateSessionPages (sets end_time, pages_read, etc.)
+    db.updateSessionPages(
+      state.sessionId!,
+      pagesRead: pagesRead,
+      endPage: endPage,
+      durationSeconds: durationSeconds > 0 ? durationSeconds : null,
+    );
+
+    // If the user finished the book, update its status
+    if (finishedBook && bookId != null) {
+      final now = DateTime.now();
+      db.updateBook(bookId, {
+        'status': ReadingStatus.finished.name,
+        'date_finished': now.toIso8601String(),
+      });
+    }
+
+    // Invalidate all related providers
+    if (bookId != null) {
+      ref.invalidate(bookSessionsProvider(bookId));
+      ref.invalidate(currentBookProvider(bookId));
+      ref.invalidate(bookPagesReadProvider(bookId));
+      ref.invalidate(bookRemainingPagesProvider(bookId));
+      ref.invalidate(activeBookSessionProvider(bookId));
+    }
+    ref.invalidate(recentSessionsProvider);
+    ref.invalidate(allBooksProvider);
+    ref.invalidate(booksByStatusProvider);
+    ref.invalidate(bookshelfStatsProvider);
+
+    state = const ActiveSessionState();
+  }
+
+  /// Convenience getter that delegates to [ActiveSessionState.pagesRead].
+  int? get pagesReadFromState => state.pagesRead;
 }
 
 // ============================================================

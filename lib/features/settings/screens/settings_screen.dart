@@ -8,8 +8,10 @@ import 'package:lecto/core/theme/theme_provider.dart';
 import 'package:lecto/core/database/providers.dart';
 import 'package:lecto/features/updater/providers/updater_providers.dart';
 import 'package:lecto/features/updater/widgets/update_dialog.dart';
+import 'package:lecto/features/settings/providers/settings_providers.dart'
+    hide isDarkModeProvider;
 
-/// Paramètres de l'application — thème, mises à jour, à propos.
+/// Paramètres de l'application — profil, thème, mises à jour, à propos.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -20,11 +22,20 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _appVersion = '...';
   String _appBuildNumber = '...';
+  final _nameController = TextEditingController();
+  bool _nameInitialized = false;
+  bool _nameModified = false;
 
   @override
   void initState() {
     super.initState();
     _loadVersion();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadVersion() async {
@@ -42,12 +53,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _saveName() async {
+    final name = _nameController.text.trim();
+    await ref.read(userNameProvider.notifier).setName(name);
+    setState(() => _nameModified = false);
+    if (context.mounted) {
+      HapticFeedback.lightImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            name.isEmpty ? 'Nom effacé' : 'Nom enregistré',
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentThemeOption = ref.watch(themeOptionProvider);
     final isDarkMode = ref.watch(isDarkModeProvider);
+
+    // Initialize name controller from provider on first build
+    if (!_nameInitialized) {
+      final savedName = ref.read(userNameProvider).valueOrNull ?? '';
+      if (_nameController.text != savedName) {
+        _nameController.text = savedName;
+      }
+      _nameInitialized = true;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -59,6 +97,119 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
         children: [
+          // ========== Section Profil ==========
+          _SectionHeader(title: 'Profil'),
+          const SizedBox(height: 10),
+
+          // Profile card
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: colorScheme.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: colorScheme.primary.withValues(alpha: 0.12),
+                          ),
+                          child: Icon(
+                            Icons.person_rounded,
+                            color: colorScheme.primary,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Nom d\'utilisateur',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Saisissez votre prénom pour personnaliser l\'accueil',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: colorScheme.onSurface.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _nameController,
+                    onChanged: (value) {
+                      final trimmed = value.trim();
+                      final saved = ref.read(userNameProvider).valueOrNull ?? '';
+                      final modified = trimmed != saved;
+                      if (modified != _nameModified) {
+                        setState(() => _nameModified = modified);
+                      }
+                    },
+                    onSubmitted: (_) => _saveName(),
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      hintText: 'Votre prénom',
+                      filled: true,
+                      fillColor: colorScheme.onSurface.withValues(alpha: 0.04),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      suffixIcon: _nameModified
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.check_circle_rounded,
+                                color: colorScheme.primary,
+                              ),
+                              onPressed: _saveName,
+                            )
+                          : null,
+                    ),
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 28),
+
           // ========== Section Thème ==========
           _SectionHeader(title: 'Thème'),
           const SizedBox(height: 10),

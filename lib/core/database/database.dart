@@ -489,16 +489,16 @@ class AppDatabase {
     return ReadingSession.fromMap(result.first);
   }
 
-  void endSession(String id, {int? endPage, int? pagesRead}) {
+  void endSession(String id, {int? endPage, int? pagesRead, Duration? customDuration}) {
     final now = DateTime.now();
     final session = getSession(id);
     if (session == null) return;
-    final duration = now.difference(session.startTime).inSeconds;
+    final duration = customDuration ?? now.difference(session.startTime);
     final updates = <String, dynamic>{
       'end_time': now.toIso8601String(),
       'end_page': endPage,
       'pages_read': pagesRead ?? (endPage != null && session.startPage != null ? endPage - session.startPage! : null),
-      'duration_seconds': duration,
+      'duration_seconds': duration.inSeconds,
     };
     _db.update('reading_sessions', updates, where: 'id = ?', whereArgs: [id]);
   }
@@ -518,6 +518,37 @@ class AppDatabase {
 
   void deleteSession(String id) {
     _db.delete('reading_sessions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Returns the total number of pages read across all sessions for a book.
+  int getTotalPagesReadForBook(String bookId) {
+    final result = _db.select(
+      'SELECT COALESCE(SUM(pages_read), 0) as total FROM reading_sessions WHERE book_id = ? AND pages_read IS NOT NULL',
+      [bookId],
+    );
+    return result.first['total'] as int;
+  }
+
+  /// Returns the most recent active session (no end_time) for a book, if any.
+  ReadingSession? getActiveSessionForBook(String bookId) {
+    final rows = _db.select(
+      'SELECT * FROM reading_sessions WHERE book_id = ? AND end_time IS NULL ORDER BY start_time DESC LIMIT 1',
+      [bookId],
+    );
+    if (rows.isEmpty) return null;
+    return ReadingSession.fromMap(rows.first);
+  }
+
+  /// Updates a session's pages read, end page, and duration (for manual entry).
+  void updateSessionPages(String id, {required int pagesRead, int? endPage, int? durationSeconds}) {
+    final now = DateTime.now();
+    final updates = <String, dynamic>{
+      'pages_read': pagesRead,
+      'end_page': endPage,
+      'end_time': now.toIso8601String(),
+      'duration_seconds': durationSeconds,
+    };
+    _db.update('reading_sessions', updates, where: 'id = ?', whereArgs: [id]);
   }
 
   // ============================================================

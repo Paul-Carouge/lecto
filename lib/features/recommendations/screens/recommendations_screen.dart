@@ -282,7 +282,7 @@ class _RecommendationsScreenState
               height: 50,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pushNamed(context, AppRouter.library);
+                  Navigator.pop(context);
                 },
                 icon: const Icon(Icons.explore_rounded, size: 20),
                 label: Text(
