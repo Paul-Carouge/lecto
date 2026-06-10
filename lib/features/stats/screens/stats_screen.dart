@@ -7,17 +7,51 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:lecto/core/theme/app_theme.dart';
-import 'package:lecto/core/utils/formatters.dart';
+import 'package:intl/intl.dart';
+import 'package:lecto/core/theme/theme_provider.dart';
+import 'package:lecto/core/theme/themes.dart';
+import 'package:lecto/core/database/database.dart';
+import 'package:lecto/features/goals/providers/goal_providers.dart';
 import 'package:lecto/features/stats/providers/stats_providers.dart';
 import 'package:lecto/shared/widgets/empty_state.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Palette terracotta
+// Helpers
 // ──────────────────────────────────────────────────────────────────────────────
-const Color _terracotta = Color(0xFFC85A3E);
-const Color _terracottaLight = Color(0xFFE8836A);
-const Color _terracottaBg = Color(0xFFFDF3F0);
+
+/// Compact number formatting (e.g. 1 200 → "1.2k").
+String _compactNumber(int n) {
+  if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+  if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+  return n.toString();
+}
+
+/// French month abbreviation helper.
+String _frenchMonth(int month) {
+  final date = DateTime(2024, month);
+  return DateFormat('MMM', 'fr_FR').format(date);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Goal model used locally inside stats (mirrors the DB GoalProgress shape)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Simple progress info derived from a [ReadingGoal].
+class _GoalInfo {
+  final int target;
+  final int progress;
+  final double percentage;
+
+  const _GoalInfo({
+    required this.target,
+    required this.progress,
+    required this.percentage,
+  });
+
+  bool get hasGoal => target > 0;
+  bool get isComplete => percentage >= 1.0;
+  int get remaining => (target - progress).clamp(0, target);
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // StatsScreen
@@ -72,6 +106,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = ref.watch(themePaletteProvider);
     final now = DateTime.now();
     final year = now.year;
     final currentMonth = now.month;
@@ -79,6 +114,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final statsAsync = ref.watch(bookshelfStatsProvider);
     final monthlyPagesAsync = ref.watch(monthlyStatsProvider(year));
     final genresAsync = ref.watch(topGenresProvider);
+    final monthlyGoalAsync =
+        ref.watch(currentGoalProgressProvider(year, month: currentMonth));
+    final allGoalsAsync = ref.watch(goalsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -112,6 +150,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ref.invalidate(bookshelfStatsProvider);
           ref.invalidate(monthlyStatsProvider(year));
           ref.invalidate(topGenresProvider);
+          ref.invalidate(currentGoalProgressProvider);
+          ref.invalidate(goalsProvider);
         },
         child: statsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -121,7 +161,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               child: Text(
                 'Erreur : $err',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(color: AppTheme.error),
+                style: GoogleFonts.inter(color: const Color(0xFFEF4444)),
               ),
             ),
           ),
@@ -149,13 +189,66 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             final totalMinutes = stats.totalTime.inMinutes;
             final streakDays = stats.currentStreak;
 
+            // ── Resolve goal data ──────────────────────────────────
+            // Monthly pages goal from currentGoalProgressProvider
+            final GoalProgress? monthlyGoalData =
+                monthlyGoalAsync.valueOrNull;
+            final _GoalInfo monthlyGoal;
+            if (monthlyGoalData != null && monthlyGoalData.hasGoal) {
+              monthlyGoal = _GoalInfo(
+                target: monthlyGoalData.target,
+                progress: monthlyGoalData.progress,
+                percentage: monthlyGoalData.percentage,
+              );
+            } else {
+              monthlyGoal = const _GoalInfo(
+                target: 0,
+                progress: 0,
+                percentage: 0.0,
+              );
+            }
+
+            // Yearly books goal from allGoalsAsync
+            final List<ReadingGoal>? allGoals = allGoalsAsync.valueOrNull;
+            ReadingGoal? booksGoal;
+            if (allGoals != null) {
+              final matches = allGoals.where(
+                (g) =>
+                    g.type == 'books' &&
+                    g.year == year &&
+                    g.month == null,
+              );
+              if (matches.isNotEmpty) {
+                booksGoal = matches.first;
+              }
+            }
+            final _GoalInfo yearlyBooksGoal;
+            if (booksGoal != null) {
+              yearlyBooksGoal = _GoalInfo(
+                target: booksGoal.target,
+                progress: stats.totalBooks,
+                percentage: booksGoal.target > 0
+                    ? (stats.totalBooks / booksGoal.target).clamp(0.0, 1.0)
+                    : 0.0,
+              );
+            } else {
+              yearlyBooksGoal = const _GoalInfo(
+                target: 0,
+                progress: 0,
+                percentage: 0.0,
+              );
+            }
+
             return RepaintBoundary(
               key: _screenshotKey,
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
                 children: [
                   // ── 1. Cercle "XX livres lus" ──────────────────────
-                  _BooksCircle(count: stats.totalBooks),
+                  _BooksCircle(
+                    count: stats.totalBooks,
+                    palette: palette,
+                  ),
                   const SizedBox(height: 24),
 
                   // ── 2. 3 cartes horizontales ───────────────────────
@@ -163,10 +256,22 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     pages: stats.totalPages,
                     minutes: totalMinutes,
                     days: streakDays,
+                    palette: palette,
+                    isDark: isDark,
                   ),
                   const SizedBox(height: 28),
 
-                  // ── 3. Graphique barres : Pages par mois ───────────
+                  // ── 3. Objectifs ────────────────────────────────────
+                  _GoalsSection(
+                    monthlyGoal: monthlyGoal,
+                    yearlyBooksGoal: yearlyBooksGoal,
+                    palette: palette,
+                    isDark: isDark,
+                    currentMonth: currentMonth,
+                  ),
+                  const SizedBox(height: 28),
+
+                  // ── 4. Graphique barres : Pages par mois ───────────
                   _SectionHeader(title: 'Pages par mois'),
                   const SizedBox(height: 12),
                   monthlyPagesAsync.when(
@@ -176,7 +281,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                       child: Text(
                         'Erreur chargement : $err',
                         style: GoogleFonts.inter(
-                          color: AppTheme.textSecondary,
+                          color: isDark
+                              ? palette.textOnDark.withValues(alpha: 0.5)
+                              : palette.textSecondary,
                           fontSize: 13,
                         ),
                       ),
@@ -184,11 +291,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     data: (monthlyData) => _PagesBarChart(
                       data: monthlyData,
                       currentMonth: currentMonth,
+                      palette: palette,
+                      isDark: isDark,
                     ),
                   ),
                   const SizedBox(height: 28),
 
-                  // ── 4. Top genres ──────────────────────────────────
+                  // ── 5. Top genres ──────────────────────────────────
                   _SectionHeader(title: 'Genres favoris'),
                   const SizedBox(height: 12),
                   genresAsync.when(
@@ -201,18 +310,24 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                           child: Text(
                             'Ajoutez des genres à vos livres.',
                             style: GoogleFonts.inter(
-                              color: AppTheme.textSecondary,
+                              color: isDark
+                                  ? palette.textOnDark.withValues(alpha: 0.5)
+                                  : palette.textSecondary,
                               fontSize: 13,
                             ),
                           ),
                         );
                       }
-                      return _GenreChips(genres: genres);
+                      return _GenreChips(
+                        genres: genres,
+                        palette: palette,
+                        isDark: isDark,
+                      );
                     },
                   ),
                   const SizedBox(height: 28),
 
-                  // ── 5. Ce mois-ci ──────────────────────────────────
+                  // ── 6. Ce mois-ci ──────────────────────────────────
                   _SectionHeader(title: 'Ce mois-ci'),
                   const SizedBox(height: 12),
                   monthlyPagesAsync.when(
@@ -223,6 +338,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                           monthlyData[currentMonth] ?? 0;
                       return _MonthlyProgress(
                         pagesThisMonth: pagesThisMonth,
+                        monthlyGoal: monthlyGoal,
+                        palette: palette,
                         isDark: isDark,
                       );
                     },
@@ -240,12 +357,180 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Objectifs section — inline goals display
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _GoalsSection extends StatelessWidget {
+  final _GoalInfo monthlyGoal;
+  final _GoalInfo yearlyBooksGoal;
+  final ThemePalette palette;
+  final bool isDark;
+  final int currentMonth;
+
+  const _GoalsSection({
+    required this.monthlyGoal,
+    required this.yearlyBooksGoal,
+    required this.palette,
+    required this.isDark,
+    required this.currentMonth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary =
+        isDark ? palette.textOnDark : palette.textPrimary;
+    final textSecondary =
+        isDark ? palette.textOnDark.withValues(alpha: 0.5) : palette.textSecondary;
+    final successColor = const Color(0xFF6B8E4E);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(title: 'Objectifs'),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // ---- Monthly pages goal ----
+              _buildGoalRow(
+                icon: Icons.auto_stories_rounded,
+                label: 'Pages mensuelles (${_frenchMonth(currentMonth)})',
+                current: monthlyGoal.progress,
+                target: monthlyGoal.target,
+                hasGoal: monthlyGoal.hasGoal,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                successColor: successColor,
+                palette: palette,
+              ),
+              if (yearlyBooksGoal.hasGoal || true) ...[
+                const SizedBox(height: 16),
+                // ---- Yearly books goal ----
+                _buildGoalRow(
+                  icon: Icons.menu_book_rounded,
+                  label: 'Livres annuels',
+                  current: yearlyBooksGoal.progress,
+                  target: yearlyBooksGoal.target,
+                  hasGoal: yearlyBooksGoal.hasGoal,
+                  textPrimary: textPrimary,
+                  textSecondary: textSecondary,
+                  successColor: successColor,
+                  palette: palette,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGoalRow({
+    required IconData icon,
+    required String label,
+    required int current,
+    required int target,
+    required bool hasGoal,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color successColor,
+    required ThemePalette palette,
+  }) {
+    if (!hasGoal) {
+      return Row(
+        children: [
+          Icon(icon, size: 20, color: palette.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: textSecondary,
+              ),
+            ),
+          ),
+          Text(
+            'Pas d\'objectif',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              color: textSecondary,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final percentage =
+        target > 0 ? (current / target).clamp(0.0, 1.0) : 0.0;
+    final barColor = percentage >= 1.0 ? successColor : palette.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20, color: palette.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: textPrimary,
+                ),
+              ),
+            ),
+            Text(
+              '$current / $target',
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: percentage,
+            backgroundColor: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.grey.withValues(alpha: 0.12),
+            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+            minHeight: 8,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Cercle "XX livres lus"
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _BooksCircle extends StatelessWidget {
   final int count;
-  const _BooksCircle({required this.count});
+  final ThemePalette palette;
+  const _BooksCircle({required this.count, required this.palette});
 
   @override
   Widget build(BuildContext context) {
@@ -259,13 +544,13 @@ class _BooksCircle extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              _terracotta,
-              _terracottaLight,
+              palette.primary,
+              palette.primaryLight,
             ],
           ),
           boxShadow: [
             BoxShadow(
-              color: _terracotta.withValues(alpha: 0.35),
+              color: palette.primary.withValues(alpha: 0.35),
               blurRadius: 24,
               offset: const Offset(0, 8),
             ),
@@ -307,11 +592,15 @@ class _StatsRow extends StatelessWidget {
   final int pages;
   final int minutes;
   final int days;
+  final ThemePalette palette;
+  final bool isDark;
 
   const _StatsRow({
     required this.pages,
     required this.minutes,
     required this.days,
+    required this.palette,
+    required this.isDark,
   });
 
   @override
@@ -321,9 +610,11 @@ class _StatsRow extends StatelessWidget {
         Expanded(
           child: _MiniStatCard(
             icon: Icons.auto_stories_rounded,
-            value: Formatters.formatCompactNumber(pages),
+            value: _compactNumber(pages),
             label: 'Pages',
-            color: _terracotta,
+            color: palette.primary,
+            palette: palette,
+            isDark: isDark,
           ),
         ),
         const SizedBox(width: 10),
@@ -332,7 +623,9 @@ class _StatsRow extends StatelessWidget {
             icon: Icons.schedule_rounded,
             value: _formatMinutesCompact(minutes),
             label: 'Minutes',
-            color: AppTheme.primary,
+            color: palette.primary,
+            palette: palette,
+            isDark: isDark,
           ),
         ),
         const SizedBox(width: 10),
@@ -341,7 +634,9 @@ class _StatsRow extends StatelessWidget {
             icon: Icons.local_fire_department_rounded,
             value: days.toString(),
             label: 'Jours',
-            color: AppTheme.warning,
+            color: const Color(0xFFD97A60),
+            palette: palette,
+            isDark: isDark,
           ),
         ),
       ],
@@ -361,23 +656,25 @@ class _MiniStatCard extends StatelessWidget {
   final String value;
   final String label;
   final Color color;
+  final ThemePalette palette;
+  final bool isDark;
 
   const _MiniStatCard({
     required this.icon,
     required this.value,
     required this.label,
     required this.color,
+    required this.palette,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: isDark ? AppTheme.surfaceCard : Colors.white,
+        color: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
@@ -403,7 +700,7 @@ class _MiniStatCard extends StatelessWidget {
             style: GoogleFonts.outfit(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white : AppTheme.textPrimary,
+              color: isDark ? palette.textOnDark : palette.textPrimary,
               height: 1.1,
             ),
           ),
@@ -413,7 +710,9 @@ class _MiniStatCard extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textSecondary,
+              color: isDark
+                  ? palette.textOnDark.withValues(alpha: 0.5)
+                  : palette.textSecondary,
             ),
           ),
         ],
@@ -450,16 +749,18 @@ class _SectionHeader extends StatelessWidget {
 class _PagesBarChart extends StatelessWidget {
   final Map<int, int> data;
   final int currentMonth;
+  final ThemePalette palette;
+  final bool isDark;
 
   const _PagesBarChart({
     required this.data,
     required this.currentMonth,
+    required this.palette,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     // Derniers 6 mois
     final months = List.generate(6, (i) {
       final m = currentMonth - 5 + i;
@@ -477,7 +778,7 @@ class _PagesBarChart extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: isDark ? AppTheme.surfaceCard : Colors.white,
+        color: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
@@ -496,7 +797,7 @@ class _PagesBarChart extends StatelessWidget {
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
                 final month = months[group.x.toInt()];
                 return BarTooltipItem(
-                  '${Formatters.formatMonth(month)} : ${rod.toY.toInt()} pages',
+                  '${_frenchMonth(month)} : ${rod.toY.toInt()} pages',
                   TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -521,11 +822,13 @@ class _PagesBarChart extends StatelessWidget {
                   return Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      Formatters.formatMonth(month).substring(0, 3),
+                      _frenchMonth(month),
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: AppTheme.textSecondary,
+                        color: isDark
+                            ? palette.textOnDark.withValues(alpha: 0.5)
+                            : palette.textSecondary,
                       ),
                     ),
                   );
@@ -567,7 +870,9 @@ class _PagesBarChart extends StatelessWidget {
               barRods: [
                 BarChartRodData(
                   toY: value,
-                  color: isCurrent ? _terracotta : _terracotta.withValues(alpha: 0.55),
+                  color: isCurrent
+                      ? palette.primary
+                      : palette.primary.withValues(alpha: 0.55),
                   width: 20,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(5),
@@ -588,12 +893,17 @@ class _PagesBarChart extends StatelessWidget {
 
 class _GenreChips extends StatelessWidget {
   final Map<String, int> genres;
-  const _GenreChips({required this.genres});
+  final ThemePalette palette;
+  final bool isDark;
+
+  const _GenreChips({
+    required this.genres,
+    required this.palette,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return SizedBox(
       height: 44,
       child: ListView.separated(
@@ -607,12 +917,12 @@ class _GenreChips extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               color: isDark
-                  ? _terracotta.withValues(alpha: 0.15)
-                  : _terracottaBg,
+                  ? palette.primary.withValues(alpha: 0.15)
+                  : palette.primary.withValues(alpha: 0.08),
               border: Border.all(
                 color: isDark
-                    ? _terracotta.withValues(alpha: 0.25)
-                    : _terracotta.withValues(alpha: 0.2),
+                    ? palette.primary.withValues(alpha: 0.25)
+                    : palette.primary.withValues(alpha: 0.2),
                 width: 1,
               ),
             ),
@@ -624,24 +934,25 @@ class _GenreChips extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? _terracottaLight : _terracotta,
+                    color: isDark ? palette.primaryLight : palette.primary,
                   ),
                 ),
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
                     color: isDark
-                        ? _terracotta.withValues(alpha: 0.3)
-                        : _terracotta.withValues(alpha: 0.12),
+                        ? palette.primary.withValues(alpha: 0.3)
+                        : palette.primary.withValues(alpha: 0.12),
                   ),
                   child: Text(
                     '${entry.value}',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? _terracottaLight : _terracotta,
+                      color: isDark ? palette.primaryLight : palette.primary,
                     ),
                   ),
                 ),
@@ -655,29 +966,34 @@ class _GenreChips extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Ce mois-ci — progression
+// Ce mois-ci — progression (REAL goal from DB)
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _MonthlyProgress extends StatelessWidget {
   final int pagesThisMonth;
+  final _GoalInfo monthlyGoal;
+  final ThemePalette palette;
   final bool isDark;
 
   const _MonthlyProgress({
     required this.pagesThisMonth,
+    required this.monthlyGoal,
+    required this.palette,
     required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Objectif par défaut : 500 pages/mois
-    const goalPages = 500;
-    final progress = (pagesThisMonth / goalPages).clamp(0.0, 1.0);
+    final goalPages = monthlyGoal.hasGoal ? monthlyGoal.target : 0;
+    final progress = goalPages > 0
+        ? (pagesThisMonth / goalPages).clamp(0.0, 1.0)
+        : 0.0;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: isDark ? AppTheme.surfaceCard : Colors.white,
+        color: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
@@ -698,15 +1014,17 @@ class _MonthlyProgress extends StatelessWidget {
                 style: GoogleFonts.outfit(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : AppTheme.textPrimary,
+                  color: isDark ? palette.textOnDark : palette.textPrimary,
                 ),
               ),
               Text(
-                '$goalPages pages',
+                monthlyGoal.hasGoal ? '$goalPages pages' : '',
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: AppTheme.textSecondary,
+                  color: isDark
+                      ? palette.textOnDark.withValues(alpha: 0.5)
+                      : palette.textSecondary,
                 ),
               ),
             ],
@@ -714,44 +1032,33 @@ class _MonthlyProgress extends StatelessWidget {
           const SizedBox(height: 14),
 
           // Barre de progression
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : Colors.grey.withValues(alpha: 0.12),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                progress >= 1.0 ? AppTheme.success : _terracotta,
-              ),
-              minHeight: 10,
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Message objectif
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Les objectifs seront bientôt disponibles !',
-                    style: GoogleFonts.inter(fontSize: 14),
-                  ),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+          if (monthlyGoal.hasGoal) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.grey.withValues(alpha: 0.12),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  progress >= 1.0
+                      ? const Color(0xFF6B8E4E)
+                      : palette.primary,
                 ),
-              );
-            },
-            child: Container(
+                minHeight: 10,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Message objectif ou pas d'objectif
+          if (!monthlyGoal.hasGoal)
+            Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                color: _terracotta.withValues(alpha: 0.08),
+                color: palette.primary.withValues(alpha: 0.08),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -759,7 +1066,7 @@ class _MonthlyProgress extends StatelessWidget {
                   Icon(
                     Icons.flag_outlined,
                     size: 16,
-                    color: _terracotta,
+                    color: palette.primary,
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -767,13 +1074,12 @@ class _MonthlyProgress extends StatelessWidget {
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: _terracotta,
+                      color: palette.primary,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
         ],
       ),
     );

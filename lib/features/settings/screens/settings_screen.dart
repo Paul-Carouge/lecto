@@ -1,11 +1,21 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:lecto/core/theme/themes.dart';
 import 'package:lecto/core/theme/theme_provider.dart';
+import 'package:lecto/core/database/database.dart';
 import 'package:lecto/core/database/providers.dart';
+import 'package:lecto/features/books/providers/book_providers.dart';
+import 'package:lecto/features/sessions/providers/session_providers.dart';
+import 'package:lecto/features/stats/providers/stats_providers.dart';
+import 'package:lecto/features/goals/providers/goal_providers.dart';
 import 'package:lecto/features/updater/providers/updater_providers.dart';
 import 'package:lecto/features/updater/widgets/update_dialog.dart';
 import 'package:lecto/features/settings/providers/settings_providers.dart'
@@ -409,14 +419,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.file_download_rounded,
                   title: 'Exporter les données',
                   subtitle: 'Sauvegarder vos données en JSON',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Exportation bientôt disponible !'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                  onTap: () => _exportData(context, colorScheme),
                   colorScheme: colorScheme,
                 ),
                 const Divider(height: 1, indent: 72, endIndent: 16),
@@ -424,14 +427,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.file_upload_rounded,
                   title: 'Importer des données',
                   subtitle: 'Restaurer depuis un fichier de sauvegarde',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Importation bientôt disponible !'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                  onTap: () => _importData(context, colorScheme),
                   colorScheme: colorScheme,
                 ),
                 const Divider(height: 1, indent: 72, endIndent: 16),
@@ -526,7 +522,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               for (final session in db.getAllSessions()) {
                 db.deleteSession(session.id);
               }
+              for (final goal in db.getGoals()) {
+                db.deleteGoal(goal.id);
+              }
               db.clearRecommendations();
+
+              // Invalidate ALL providers for instant refresh
+              ref.invalidate(allBooksProvider);
+              ref.invalidate(booksByStatusProvider);
+              ref.invalidate(recentSessionsProvider);
+              ref.invalidate(bookshelfStatsProvider);
+              ref.invalidate(goalsProvider);
+              ref.invalidate(monthlyStatsProvider);
+              ref.invalidate(topGenresProvider);
+              ref.invalidate(bookSearchProvider);
+              ref.invalidate(bookPagesReadProvider);
+              ref.invalidate(bookRemainingPagesProvider);
+              ref.invalidate(activeBookSessionProvider);
+
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -548,6 +561,168 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _exportData(BuildContext context, ColorScheme cs) async {
+    HapticFeedback.lightImpact();
+    try {
+      final db = ref.read(databaseProvider);
+      final books = db.getAllBooks();
+      final sessions = db.getAllSessions();
+      final goals = db.getGoals();
+
+      final exportData = {
+        'exported_at': DateTime.now().toIso8601String(),
+        'app_version': _appVersion,
+        'books': books.map((b) => b.toMap()).toList(),
+        'sessions': sessions.map((s) => s.toMap()).toList(),
+        'goals': goals.map((g) => g.toMap()).toList(),
+      };
+
+      final json = const JsonEncoder.withIndent('  ').convert(exportData);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/lecto_backup.json');
+      await file.writeAsString(json);
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/json')],
+        text: 'Sauvegarde Lecto — ${books.length} livres, ${sessions.length} sessions',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${books.length} livres et ${sessions.length} sessions exportés'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur export : $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importData(BuildContext context, ColorScheme cs) async {
+    HapticFeedback.lightImpact();
+    final controller = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.file_upload_rounded, color: cs.primary, size: 24),
+            const SizedBox(width: 10),
+            Text('Importer', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Collez le contenu JSON exporté depuis Lecto.\nLes données seront fusionnées avec vos livres existants.',
+                style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: cs.onSurface.withValues(alpha: 0.6)),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                maxLines: 8,
+                style: GoogleFonts.inter(fontSize: 12, color: cs.onSurface),
+                decoration: InputDecoration(
+                  hintText: 'Collez le JSON ici…',
+                  hintStyle: GoogleFonts.inter(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.3)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Annuler', style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: Text('Importer', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true || controller.text.trim().isEmpty) return;
+
+    try {
+      final data = jsonDecode(controller.text.trim()) as Map<String, dynamic>;
+      final db = ref.read(databaseProvider);
+      int booksImported = 0, sessionsImported = 0, goalsImported = 0;
+
+      final booksList = data['books'] as List<dynamic>? ?? [];
+      for (final b in booksList) {
+        final book = Book.fromMap(b as Map<String, dynamic>);
+        final existing = db.getBook(book.id);
+        if (existing == null) {
+          db.addBook(book);
+          booksImported++;
+        }
+      }
+
+      final sessionsList = data['sessions'] as List<dynamic>? ?? [];
+      for (final s in sessionsList) {
+        final session = ReadingSession.fromMap(s as Map<String, dynamic>);
+        final existing = db.getSession(session.id);
+        if (existing == null) {
+          db.addRawSession(session);
+          sessionsImported++;
+        }
+      }
+
+      final goalsList = data['goals'] as List<dynamic>? ?? [];
+      for (final g in goalsList) {
+        final goal = ReadingGoal.fromMap(g as Map<String, dynamic>);
+        db.addRawGoal(goal);
+        goalsImported++;
+      }
+
+      // Invalidate ALL providers
+      ref.invalidate(allBooksProvider);
+      ref.invalidate(booksByStatusProvider);
+      ref.invalidate(recentSessionsProvider);
+      ref.invalidate(bookshelfStatsProvider);
+      ref.invalidate(goalsProvider);
+      ref.invalidate(monthlyStatsProvider);
+      ref.invalidate(topGenresProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$booksImported livres, $sessionsImported sessions, $goalsImported objectifs importés'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur import : vérifiez le format du fichier'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }
 

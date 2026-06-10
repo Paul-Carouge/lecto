@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,9 +10,14 @@ import 'package:lecto/core/database/providers.dart';
 import 'package:lecto/core/router/app_router.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
 import 'package:lecto/core/services/book_search_service.dart';
+import 'package:lecto/core/theme/theme_provider.dart';
+import 'package:lecto/core/theme/themes.dart';
 import 'package:lecto/features/stats/providers/stats_providers.dart';
 
-/// Search and add books screen — redesigned for beauty and delight.
+// ============================================================
+// AddBookScreen — Recherche et ajout de livres
+// ============================================================
+
 class AddBookScreen extends ConsumerStatefulWidget {
   const AddBookScreen({super.key});
 
@@ -21,34 +27,25 @@ class AddBookScreen extends ConsumerStatefulWidget {
 
 class _AddBookScreenState extends ConsumerState<AddBookScreen> {
   final _searchController = TextEditingController();
-  final _isbnSearchController = TextEditingController();
-  final _titleController = TextEditingController();
-  final _authorController = TextEditingController();
-  final _pagesController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _bookSearch = BookSearchService();
+  Timer? _debounce;
 
   List<Map<String, dynamic>> _results = [];
   bool _isSearching = false;
-  bool _showManualEntry = false;
-  bool _showIsbnEntry = false;
+  bool _hasSearched = false;
   String? _error;
   String? _suggestedQuery;
-
-  final _bookSearch = BookSearchService();
-  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    _searchFocusNode.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _isbnSearchController.dispose();
-    _titleController.dispose();
-    _authorController.dispose();
-    _pagesController.dispose();
     _searchFocusNode.dispose();
     _debounce?.cancel();
     super.dispose();
@@ -62,11 +59,14 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
         _error = null;
         _isSearching = false;
         _suggestedQuery = null;
+        _hasSearched = false;
       });
       return;
     }
     _debounce = Timer(
-        const Duration(milliseconds: 350), () => _searchBooks(query));
+      const Duration(milliseconds: 350),
+      () => _searchBooks(query),
+    );
   }
 
   Future<void> _searchBooks(String query) async {
@@ -74,6 +74,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
       _isSearching = true;
       _error = null;
       _suggestedQuery = null;
+      _hasSearched = true;
     });
     try {
       final result = await _bookSearch.searchBooks(query);
@@ -121,57 +122,16 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
 
       if (!mounted) return;
 
-      // Show dialog: "Ajouté ! Voulez-vous commencer la lecture ?"
+      HapticFeedback.mediumImpact();
+
       final startReading = await showDialog<bool>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.check_circle_rounded,
-                  color: Theme.of(context).colorScheme.primary, size: 28),
-              const SizedBox(width: 10),
-              Text(
-                'Ajouté !',
-                style: GoogleFonts.outfit(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            '« ${book.title} » a été ajouté à votre bibliothèque.\n\nVoulez-vous commencer la lecture ?',
-            style: GoogleFonts.inter(fontSize: 15, height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text('Non',
-                  style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w500)),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text('Oui',
-                  style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
+        builder: (ctx) => _AddBookSuccessDialog(book: book),
       );
 
       if (!mounted) return;
 
       if (startReading == true) {
-        // Change status to reading with dateStarted
         final now = DateTime.now();
         db.updateBook(book.id, {
           'status': ReadingStatus.reading.name,
@@ -183,16 +143,11 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
         ref.invalidate(bookshelfStatsProvider);
 
         if (!mounted) return;
-        // Navigate to session screen
         Navigator.pushNamedAndRemoveUntil(
           context,
-          '/',
-          (route) => false,
+          AppRouter.session(book.id),
+          (route) => route.isFirst,
         );
-        Navigator.pushNamed(context, AppRouter.session(book.id));
-      } else {
-        // Just go back
-        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -206,265 +161,154 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
     }
   }
 
-  Future<void> _addManualBook() async {
-    final title = _titleController.text.trim();
-    final author = _authorController.text.trim();
-    if (title.isEmpty || author.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("Le titre et l'auteur sont requis")),
-      );
-      return;
-    }
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(isDarkModeProvider);
 
-    try {
-      final db = ref.read(databaseProvider);
-      final book = await db.addBook(Book(
-        id: '',
-        title: title,
-        author: author,
-        pageCount: int.tryParse(_pagesController.text),
-        status: ReadingStatus.wantToRead,
-      ));
+    final bg = isDark ? palette.surfaceDark : palette.surfaceLight;
+    final onSurface = isDark ? palette.textOnDark : palette.textPrimary;
+    final muted = isDark
+        ? palette.textOnDark.withValues(alpha: 0.5)
+        : palette.textSecondary;
 
-      ref.invalidate(allBooksProvider);
-      ref.invalidate(booksByStatusProvider);
-      ref.invalidate(bookshelfStatsProvider);
+    return Scaffold(
+      backgroundColor: bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Search section ──
+            _buildSearchSection(palette, isDark, onSurface, muted),
 
-      if (!mounted) return;
-
-      // Show dialog: "Ajouté ! Voulez-vous commencer la lecture ?"
-      final startReading = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.check_circle_rounded,
-                  color: Theme.of(context).colorScheme.primary, size: 28),
-              const SizedBox(width: 10),
-              Text(
-                'Ajouté !',
-                style: GoogleFonts.outfit(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            '« $title » a été ajouté à votre bibliothèque.\n\nVoulez-vous commencer la lecture ?',
-            style: GoogleFonts.inter(fontSize: 15, height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text('Non',
-                  style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w500)),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text('Oui',
-                  style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600)),
+            // ── Content ──
+            Expanded(
+              child: _buildContent(palette, isDark, onSurface, muted),
             ),
           ],
         ),
-      );
-
-      if (!mounted) return;
-
-      if (startReading == true) {
-        // Change status to reading with dateStarted
-        final now = DateTime.now();
-        db.updateBook(book.id, {
-          'status': ReadingStatus.reading.name,
-          'date_started': now.toIso8601String(),
-        });
-        ref.invalidate(allBooksProvider);
-        ref.invalidate(booksByStatusProvider);
-        ref.invalidate(currentBookProvider(book.id));
-        ref.invalidate(bookshelfStatsProvider);
-
-        if (!mounted) return;
-        // Navigate to session screen
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/',
-          (route) => false,
-        );
-        Navigator.pushNamed(context, AppRouter.session(book.id));
-      } else {
-        // Just go back
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Échec : $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _searchIsbn() async {
-    final isbn = _isbnSearchController.text.trim();
-    if (isbn.isEmpty) return;
-
-    setState(() => _isSearching = true);
-    try {
-      final book = await _bookSearch.getBookByIsbn(isbn);
-      if (!mounted) return;
-      if (book != null) {
-        await _addBookFromSearch(book);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Aucun livre trouvé pour cet ISBN')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSearching = false);
-    }
-  }
-
-  /// Example search chips
-  static const List<String> _exampleQueries = [
-    'Le Petit Prince',
-    'Harry Potter',
-    '1984',
-    'Les Misérables',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cs = theme.colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Ajouter un livre',
-          style: GoogleFonts.outfit(
-              fontSize: 20, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.close_rounded,
-                color: cs.onSurface.withValues(alpha: 0.6)),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // ---- Top search section (fixed) ----
-          _buildSearchSection(cs, isDark, theme),
-
-          // ---- Scrollable results + bottom sections ----
-          Expanded(
-            child: _buildBody(cs, isDark),
-          ),
-        ],
       ),
     );
   }
 
-  // ================================================================
-  // Search bar + chips
-  // ================================================================
+  // ── Search Bar ──
   Widget _buildSearchSection(
-      ColorScheme cs, bool isDark, ThemeData theme) {
-    final borderColor =
-        _searchFocusNode.hasFocus ? cs.primary : cs.onSurface.withValues(alpha: 0.12);
+    ThemePalette palette,
+    bool isDark,
+    Color onSurface,
+    Color muted,
+  ) {
+    final hasFocus = _searchFocusNode.hasFocus;
+    final hasText = _searchController.text.isNotEmpty;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Large search bar
+          // Section title
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 16),
+            child: Text(
+              'Rechercher un livre',
+              style: GoogleFonts.outfit(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: onSurface,
+              ),
+            ),
+          ),
+
+          // Search bar
           AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            height: 54,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: borderColor, width: 2),
-              color: cs.surface,
-              boxShadow: _searchFocusNode.hasFocus
+              borderRadius: BorderRadius.circular(16),
+              color: isDark
+                  ? palette.surfaceCardDark
+                  : palette.surfaceCardLight,
+              border: Border.all(
+                color: hasFocus
+                    ? palette.primary.withValues(alpha: 0.5)
+                    : isDark
+                        ? palette.textOnDark.withValues(alpha: 0.08)
+                        : palette.textSecondary.withValues(alpha: 0.12),
+                width: hasFocus ? 2 : 1,
+              ),
+              boxShadow: hasFocus
                   ? [
                       BoxShadow(
-                        color: cs.primary.withValues(alpha: 0.08),
-                        blurRadius: 12,
+                        color: palette.primary.withValues(alpha: 0.08),
+                        blurRadius: 16,
                         offset: const Offset(0, 4),
                       ),
                     ]
                   : null,
             ),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              onChanged: _onSearchChanged,
-              style: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w400),
-              decoration: InputDecoration(
-                hintText: 'Rechercher un livre ou un auteur…',
-                hintStyle: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: cs.onSurface.withValues(alpha: 0.35),
-                  fontWeight: FontWeight.w400,
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                Icon(
+                  Icons.search_rounded,
+                  size: 22,
+                  color: hasFocus ? palette.primary : muted,
                 ),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(Icons.search_rounded,
-                      color: _searchFocusNode.hasFocus
-                          ? cs.primary
-                          : cs.onSurface.withValues(alpha: 0.35),
-                      size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    onChanged: _onSearchChanged,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: onSurface,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Titre, auteur…',
+                      hintStyle: GoogleFonts.inter(
+                        fontSize: 16,
+                        color: muted.withValues(alpha: 0.5),
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
                 ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.clear_rounded,
-                            color: cs.onSurface.withValues(alpha: 0.4),
-                            size: 20),
-                        onPressed: () {
-                          _searchController.clear();
-                          _searchFocusNode.unfocus();
-                          setState(() {
-                            _results = [];
-                            _error = null;
-                            _suggestedQuery = null;
-                          });
-                        },
-                      )
-                    : null,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
-              ),
+                if (hasText)
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        _searchController.clear();
+                        _searchFocusNode.unfocus();
+                        setState(() {
+                          _results = [];
+                          _error = null;
+                          _suggestedQuery = null;
+                          _hasSearched = false;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: muted,
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 8),
+              ],
             ),
           ),
+          const SizedBox(height: 12),
 
           // Example chips
-          const SizedBox(height: 12),
           SizedBox(
             height: 34,
             child: ListView.separated(
@@ -473,118 +317,143 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final q = _exampleQueries[index];
-                return ActionChip(
-                  label: Text(
-                    q,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: cs.primary,
-                    ),
-                  ),
-                  backgroundColor: cs.primary.withValues(alpha: 0.08),
-                  side: BorderSide.none,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  onPressed: () {
+                final isSelected = _searchController.text == q;
+                return GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
                     _searchController.text = q;
                     _searchController.selection = TextSelection.fromPosition(
                       TextPosition(offset: q.length),
                     );
                     _searchBooks(q);
                   },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: isSelected
+                          ? palette.primary
+                          : palette.primary.withValues(alpha: 0.08),
+                    ),
+                    child: Center(
+                      child: Text(
+                        q,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color:
+                              isSelected ? Colors.white : palette.primary,
+                        ),
+                      ),
+                    ),
+                  ),
                 );
               },
             ),
           ),
-          const SizedBox(height: 8),
         ],
       ),
     );
   }
 
-  // ================================================================
-  // Body: results, empty, loading, error
-  // ================================================================
-  Widget _buildBody(ColorScheme cs, bool isDark) {
+  static const List<String> _exampleQueries = [
+    'Le Petit Prince',
+    'Harry Potter',
+    '1984',
+    'Les Misérables',
+  ];
+
+  // ── Content area ──
+  Widget _buildContent(
+    ThemePalette palette,
+    bool isDark,
+    Color onSurface,
+    Color muted,
+  ) {
     // Loading
     if (_isSearching) {
       return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
-        itemCount: 5,
-        itemBuilder: (_, _) => _ShimmerCard(cs: cs),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        itemCount: 6,
+        itemBuilder: (_, _) => _ShimmerCard(palette: palette, isDark: isDark),
       );
     }
 
     // Error
     if (_error != null && _results.isEmpty) {
-      return _buildErrorState(cs);
-    }
-
-    // Empty (no query entered)
-    if (_searchController.text.trim().isEmpty && _results.isEmpty) {
-      return _buildEmptyState(cs, isDark);
+      return _buildErrorState(palette, muted);
     }
 
     // Results
     if (_results.isNotEmpty) {
       return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         itemCount: _results.length + (_suggestedQuery != null ? 1 : 0),
         itemBuilder: (context, index) {
-          // Suggestion banner at top
           if (index == 0 && _suggestedQuery != null) {
-            return _buildSuggestionBanner(cs, _suggestedQuery!);
+            return _SuggestionBanner(
+              suggestion: _suggestedQuery!,
+              palette: palette,
+              onSearch: () {
+                _searchController.text = _suggestedQuery!;
+                _searchController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: _suggestedQuery!.length),
+                );
+                _searchBooks(_suggestedQuery!);
+              },
+            );
           }
-          final adjustedIndex =
-              _suggestedQuery != null ? index - 1 : index;
+          final adjustedIndex = _suggestedQuery != null ? index - 1 : index;
           final book = _results[adjustedIndex];
           return _SearchResultCard(
             bookData: book,
-            cs: cs,
+            palette: palette,
+            isDark: isDark,
             onTap: () => _addBookFromSearch(book),
           );
         },
       );
     }
 
-    // Empty results with suggestion
-    if (_suggestedQuery != null && _results.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
-        children: [
-          _buildSuggestionBanner(cs, _suggestedQuery!),
-          _buildNoResults(cs),
-        ],
-      );
+    // Empty initial state
+    if (!_hasSearched) {
+      return _buildEmptyState(palette, isDark, onSurface, muted);
     }
 
-    return const SizedBox.shrink();
+    // No results
+    return _buildNoResults(palette, muted);
   }
 
-  // ================================================================
-  // Empty state
-  // ================================================================
-  Widget _buildEmptyState(ColorScheme cs, bool isDark) {
+  // ── Empty State ──
+  Widget _buildEmptyState(
+    ThemePalette palette,
+    bool isDark,
+    Color onSurface,
+    Color muted,
+  ) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
       children: [
-        const SizedBox(height: 28),
-        // Illustration area
+        const SizedBox(height: 16),
+        // Illustration
         Center(
           child: Container(
-            width: 120,
-            height: 120,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: cs.primary.withValues(alpha: 0.06),
+              gradient: LinearGradient(
+                colors: [
+                  palette.primary.withValues(alpha: 0.12),
+                  palette.primaryLight.withValues(alpha: 0.06),
+                ],
+              ),
             ),
             child: Icon(
               Icons.menu_book_rounded,
-              size: 52,
-              color: cs.primary.withValues(alpha: 0.3),
+              size: 44,
+              color: palette.primary.withValues(alpha: 0.3),
             ),
           ),
         ),
@@ -595,79 +464,119 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
             style: GoogleFonts.outfit(
               fontSize: 22,
               fontWeight: FontWeight.w700,
-              color: cs.onSurface,
+              color: onSurface,
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Center(
           child: Text(
-            'Cherchez un livre par titre ou auteur.\nUtilisez les exemples ci-dessus pour démarrer.',
+            'Cherchez un livre par son titre ou son auteur.\nTapez quelques mots pour commencer.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 14,
               height: 1.5,
-              color: cs.onSurface.withValues(alpha: 0.5),
+              color: muted,
             ),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 36),
 
-        // Search tips
-        _TipRow(
+        // Tips
+        _TipTile(
           icon: Icons.search_rounded,
-          text: 'Tapez le titre ou le nom de l\'auteur',
-          cs: cs,
+          title: 'Recherche intelligente',
+          subtitle: 'Titre, auteur ou mots-clés',
+          palette: palette,
         ),
         const SizedBox(height: 10),
-        _TipRow(
+        _TipTile(
           icon: Icons.qr_code_rounded,
-          text: 'Recherchez par ISBN-10 ou ISBN-13',
-          cs: cs,
+          title: 'Recherche par ISBN',
+          subtitle: 'Scannez ou saisissez un code ISBN',
+          palette: palette,
         ),
         const SizedBox(height: 10),
-        _TipRow(
+        _TipTile(
           icon: Icons.edit_note_rounded,
-          text: 'Saisissez les détails manuellement',
-          cs: cs,
+          title: 'Saisie manuelle',
+          subtitle: 'Ajoutez un livre sans passer par la recherche',
+          palette: palette,
         ),
 
         const SizedBox(height: 32),
 
-        // Alternative sections at bottom
-        _buildCollapsibleSections(cs, isDark),
+        // Alternative methods
+        _buildAltMethods(palette, isDark, onSurface, muted),
       ],
     );
   }
 
-  Widget _buildNoResults(ColorScheme cs) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Center(
-        child: Column(
+  Widget _buildAltMethods(
+    ThemePalette palette,
+    bool isDark,
+    Color onSurface,
+    Color muted,
+  ) {
+    return Column(
+      children: [
+        // Divider with label
+        Row(
           children: [
-            Icon(Icons.search_off_rounded,
-                size: 48,
-                color: cs.onSurface.withValues(alpha: 0.2)),
-            const SizedBox(height: 12),
-            Text(
-              'Aucun résultat trouvé',
-              style: GoogleFonts.outfit(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface.withValues(alpha: 0.5),
+            Expanded(
+              child: Divider(
+                color: isDark
+                    ? palette.textOnDark.withValues(alpha: 0.08)
+                    : palette.textSecondary.withValues(alpha: 0.12),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Autres méthodes',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: muted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Divider(
+                color: isDark
+                    ? palette.textOnDark.withValues(alpha: 0.08)
+                    : palette.textSecondary.withValues(alpha: 0.12),
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 16),
+
+        // ISBN tile
+        _MethodTile(
+          icon: Icons.qr_code_rounded,
+          title: 'Recherche par ISBN',
+          subtitle: 'Trouvez un livre instantanément avec son code ISBN',
+          palette: palette,
+          isDark: isDark,
+          onTap: () => _showIsbnSheet(palette, isDark, onSurface, muted),
+        ),
+        const SizedBox(height: 10),
+
+        // Manual entry tile
+        _MethodTile(
+          icon: Icons.edit_note_rounded,
+          title: 'Saisie manuelle',
+          subtitle: 'Ajoutez un livre qui n\'est pas dans les bases de données',
+          palette: palette,
+          isDark: isDark,
+          onTap: () => _showManualSheet(palette, isDark, onSurface, muted),
+        ),
+      ],
     );
   }
 
-  // ================================================================
-  // Error state
-  // ================================================================
-  Widget _buildErrorState(ColorScheme cs) {
+  Widget _buildNoResults(ThemePalette palette, Color muted) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -679,22 +588,66 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: cs.error.withValues(alpha: 0.08),
+                color: palette.primary.withValues(alpha: 0.06),
+              ),
+              child: Icon(
+                Icons.search_off_rounded,
+                size: 36,
+                color: palette.primary.withValues(alpha: 0.25),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Aucun résultat',
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: palette.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Essayez avec d\'autres mots-clés\nou vérifiez l\'orthographe.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                height: 1.4,
+                color: muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(ThemePalette palette, Color muted) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFEF4444).withValues(alpha: 0.08),
               ),
               child: Icon(
                 Icons.cloud_off_rounded,
                 size: 36,
-                color: cs.error.withValues(alpha: 0.5),
+                color: const Color(0xFFEF4444).withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(height: 20),
             Text(
               'Impossible de contacter le serveur',
-              textAlign: TextAlign.center,
               style: GoogleFonts.outfit(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
-                color: cs.onSurface,
+                color: palette.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -704,7 +657,7 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
               style: GoogleFonts.inter(
                 fontSize: 14,
                 height: 1.4,
-                color: cs.onSurface.withValues(alpha: 0.5),
+                color: muted,
               ),
             ),
             const SizedBox(height: 24),
@@ -716,10 +669,13 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Réessayer'),
               style: FilledButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
             ),
           ],
@@ -728,141 +684,391 @@ class _AddBookScreenState extends ConsumerState<AddBookScreen> {
     );
   }
 
-  // ================================================================
-  // Suggestion banner
-  // ================================================================
-  Widget _buildSuggestionBanner(ColorScheme cs, String suggestion) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: cs.primary.withValues(alpha: 0.07),
-        border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
+  // ── ISBN Bottom Sheet ──
+  void _showIsbnSheet(
+    ThemePalette palette,
+    bool isDark,
+    Color onSurface,
+    Color muted,
+  ) {
+    HapticFeedback.lightImpact();
+    final isbnController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Row(
-        children: [
-          Icon(Icons.tips_and_updates_rounded,
-              size: 18, color: cs.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: cs.onSurface.withValues(alpha: 0.7)),
-                children: [
-                  const TextSpan(text: 'Vous cherchiez plutôt « '),
-                  TextSpan(
-                    text: suggestion,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: cs.primary,
-                    ),
-                  ),
-                  const TextSpan(text: ' » ?'),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 30,
-            child: TextButton(
-              onPressed: () {
-                _searchController.text = suggestion;
-                _searchController.selection = TextSelection.fromPosition(
-                  TextPosition(offset: suggestion.length),
-                );
-                _searchBooks(suggestion);
-              },
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: cs.primary.withValues(alpha: 0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                'Chercher',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: cs.primary,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 12,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  color: muted.withValues(alpha: 0.2),
                 ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: palette.primary.withValues(alpha: 0.08),
+              ),
+              child: Icon(Icons.qr_code_rounded, size: 24, color: palette.primary),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Recherche par ISBN',
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: onSurface,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Saisissez le code ISBN-10 ou ISBN-13\ndu livre que vous cherchez.',
+              style: GoogleFonts.inter(fontSize: 14, height: 1.4, color: muted),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: isbnController,
+              keyboardType: TextInputType.text,
+              autofocus: true,
+              style: GoogleFonts.inter(fontSize: 16, color: onSurface),
+              decoration: InputDecoration(
+                hintText: 'ISBN…',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 16,
+                  color: muted.withValues(alpha: 0.5),
+                ),
+                prefixIcon: Icon(Icons.qr_code_rounded, size: 22, color: muted),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton(
+                onPressed: () async {
+                  final isbn = isbnController.text.trim();
+                  if (isbn.isEmpty) return;
+                  Navigator.pop(ctx);
+                  setState(() => _isSearching = true);
+                  try {
+                    final book = await _bookSearch.getBookByIsbn(isbn);
+                    if (!mounted) return;
+                    if (book != null) {
+                      await _addBookFromSearch(book);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Aucun livre trouvé pour cet ISBN'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Erreur : $e'), behavior: SnackBarBehavior.floating),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _isSearching = false);
+                  }
+                },
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(
+                  'Rechercher',
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // ================================================================
-  // Collapsible sections (ISBN + Manual entry) at bottom of empty state
-  // ================================================================
-  Widget _buildCollapsibleSections(ColorScheme cs, bool isDark) {
-    return Column(
-      children: [
-        // ISBN look-up
-        _CollapsibleSection(
-          title: 'Recherche par ISBN',
-          icon: Icons.qr_code_rounded,
-          isOpen: _showIsbnEntry,
-          cs: cs,
-          onToggle: () {
-            setState(() {
-              _showIsbnEntry = !_showIsbnEntry;
-              if (_showIsbnEntry) _showManualEntry = false;
-            });
-          },
-          child: _IsbnForm(
-            isbnSearchController: _isbnSearchController,
-            isSearching: _isSearching,
-            onSearch: _searchIsbn,
-            cs: cs,
-          ),
-        ),
-        const SizedBox(height: 10),
+  // ── Manual Entry Bottom Sheet ──
+  void _showManualSheet(
+    ThemePalette palette,
+    bool isDark,
+    Color onSurface,
+    Color muted,
+  ) {
+    HapticFeedback.lightImpact();
+    final titleCtrl = TextEditingController();
+    final authorCtrl = TextEditingController();
+    final pagesCtrl = TextEditingController();
 
-        // Manual entry
-        _CollapsibleSection(
-          title: 'Saisie manuelle',
-          icon: Icons.edit_note_rounded,
-          isOpen: _showManualEntry,
-          cs: cs,
-          onToggle: () {
-            setState(() {
-              _showManualEntry = !_showManualEntry;
-              if (_showManualEntry) _showIsbnEntry = false;
-            });
-          },
-          child: _ManualForm(
-            titleController: _titleController,
-            authorController: _authorController,
-            pagesController: _pagesController,
-            onSubmit: _addManualBook,
-            cs: cs,
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 12,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  color: muted.withValues(alpha: 0.2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: palette.primary.withValues(alpha: 0.08),
+              ),
+              child: Icon(Icons.edit_note_rounded, size: 24, color: palette.primary),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Ajout manuel',
+              style: GoogleFonts.outfit(
+                fontSize: 20, fontWeight: FontWeight.w600, color: onSurface,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Ajoutez un livre qui n\'est pas référencé\ndans les bases de données.',
+              style: GoogleFonts.inter(fontSize: 14, height: 1.4, color: muted),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: titleCtrl,
+              style: GoogleFonts.inter(fontSize: 15, color: onSurface),
+              decoration: const InputDecoration(
+                hintText: 'Titre *',
+                prefixIcon: Icon(Icons.title_rounded, size: 22),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: authorCtrl,
+              style: GoogleFonts.inter(fontSize: 15, color: onSurface),
+              decoration: const InputDecoration(
+                hintText: 'Auteur *',
+                prefixIcon: Icon(Icons.person_rounded, size: 22),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: pagesCtrl,
+              keyboardType: TextInputType.number,
+              style: GoogleFonts.inter(fontSize: 15, color: onSurface),
+              decoration: const InputDecoration(
+                hintText: 'Nombre de pages',
+                prefixIcon: Icon(Icons.numbers_rounded, size: 22),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton(
+                onPressed: () async {
+                  final title = titleCtrl.text.trim();
+                  final author = authorCtrl.text.trim();
+                  if (title.isEmpty || author.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Le titre et l'auteur sont requis"),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(ctx);
+                  try {
+                    final db = ref.read(databaseProvider);
+                    final book = await db.addBook(Book(
+                      id: '',
+                      title: title,
+                      author: author,
+                      pageCount: int.tryParse(pagesCtrl.text),
+                      status: ReadingStatus.wantToRead,
+                    ));
+                    ref.invalidate(allBooksProvider);
+                    ref.invalidate(booksByStatusProvider);
+                    ref.invalidate(bookshelfStatsProvider);
+                    if (!mounted) return;
+
+                    HapticFeedback.mediumImpact();
+                    final startReading = await showDialog<bool>(
+                      context: context,
+                      builder: (dCtx) => _AddBookSuccessDialog(book: book),
+                    );
+                    if (!mounted || startReading != true) return;
+
+                    final now = DateTime.now();
+                    db.updateBook(book.id, {
+                      'status': ReadingStatus.reading.name,
+                      'date_started': now.toIso8601String(),
+                    });
+                    ref.invalidate(allBooksProvider);
+                    ref.invalidate(booksByStatusProvider);
+                    ref.invalidate(currentBookProvider(book.id));
+                    ref.invalidate(bookshelfStatsProvider);
+                    if (!mounted) return;
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      AppRouter.session(book.id),
+                      (route) => route.isFirst,
+                    );
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Échec : $e'), behavior: SnackBarBehavior.floating),
+                      );
+                    }
+                  }
+                },
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(
+                  'Ajouter le livre',
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+class _SuggestionBanner extends StatelessWidget {
+  final String suggestion;
+  final ThemePalette palette;
+  final VoidCallback onSearch;
+
+  const _SuggestionBanner({
+    required this.suggestion,
+    required this.palette,
+    required this.onSearch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: palette.primary.withValues(alpha: 0.06),
+          border: Border.all(
+            color: palette.primary.withValues(alpha: 0.12),
           ),
         ),
-      ],
+        child: Row(
+          children: [
+            Icon(
+              Icons.tips_and_updates_rounded,
+              size: 20,
+              color: palette.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vous cherchiez plutôt',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: palette.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    suggestion,
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: palette.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 34,
+              child: FilledButton(
+                onPressed: onSearch,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  'Chercher',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-// ================================================================
-// Search result card
-// ================================================================
+// ============================================================
+// Search Result Card
+// ============================================================
 class _SearchResultCard extends ConsumerWidget {
   final Map<String, dynamic> bookData;
-  final ColorScheme cs;
+  final ThemePalette palette;
+  final bool isDark;
   final VoidCallback onTap;
 
   const _SearchResultCard({
     required this.bookData,
-    required this.cs,
+    required this.palette,
+    required this.isDark,
     required this.onTap,
   });
 
@@ -874,63 +1080,56 @@ class _SearchResultCard extends ConsumerWidget {
     final pageCount = bookData['pageCount'] as int?;
     final source = bookData['source'] as String? ?? 'openlibrary';
 
-    // Source label
-    String sourceLabel;
-    Color sourceColor;
-    switch (source) {
-      case 'bnf':
-        sourceLabel = 'BnF';
-        sourceColor = const Color(0xFF2563EB);
-        break;
-      case 'google_books':
-        sourceLabel = 'Google Books';
-        sourceColor = const Color(0xFF4285F4);
-        break;
-      default:
-        sourceLabel = 'OpenLibrary';
-        sourceColor = const Color(0xFFD97706);
-    }
+    final surface = isDark ? palette.surfaceCardDark : palette.surfaceCardLight;
+    final onSurface = isDark ? palette.textOnDark : palette.textPrimary;
+    final muted = isDark
+        ? palette.textOnDark.withValues(alpha: 0.5)
+        : palette.textSecondary;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: cs.surface,
+            borderRadius: BorderRadius.circular(16),
+            color: surface,
             border: Border.all(
-              color: cs.onSurface.withValues(alpha: 0.06),
+              color: isDark
+                  ? palette.textOnDark.withValues(alpha: 0.06)
+                  : palette.textSecondary.withValues(alpha: 0.08),
             ),
           ),
           child: Row(
             children: [
-              // Cover thumbnail
+              // ── Cover ──
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: SizedBox(
-                  width: 48,
-                  height: 68,
+                  width: 56,
+                  height: 80,
                   child: coverUrl != null && coverUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: coverUrl,
                           fit: BoxFit.cover,
-                          placeholder: (_, _) => _coverPlaceholder(cs),
-                          errorWidget: (_, _, _) =>
-                              _coverPlaceholder(cs),
+                          placeholder: (_, _) => _CoverPlaceholder(
+                            palette: palette,
+                          ),
+                          errorWidget: (_, _, _) => _CoverPlaceholder(
+                            palette: palette,
+                          ),
                         )
-                      : _coverPlaceholder(cs),
+                      : _CoverPlaceholder(palette: palette),
                 ),
               ),
-              const SizedBox(width: 14),
-              // Info
+              const SizedBox(width: 16),
+
+              // ── Info ──
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title
                     Text(
                       title,
                       maxLines: 2,
@@ -939,83 +1138,59 @@ class _SearchResultCard extends ConsumerWidget {
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         height: 1.3,
-                        color: cs.onSurface,
+                        color: onSurface,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    // Author
+                    const SizedBox(height: 4),
                     Text(
                       author,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.55),
+                        color: muted,
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    // Badges row
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
+                    const SizedBox(height: 8),
+                    Row(
                       children: [
-                        // Page count badge
-                        if (pageCount != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(6),
-                              color: const Color(0xFFC85A3E)
-                                  .withValues(alpha: 0.1),
-                            ),
-                            child: Text(
-                              '$pageCount p.',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFFC85A3E),
-                              ),
-                            ),
+                        if (pageCount != null) ...[
+                          Icon(
+                            Icons.auto_stories_rounded,
+                            size: 14,
+                            color: palette.primary.withValues(alpha: 0.6),
                           ),
-                        // Source badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            color: sourceColor.withValues(alpha: 0.1),
-                          ),
-                          child: Text(
-                            sourceLabel,
+                          const SizedBox(width: 4),
+                          Text(
+                            '$pageCount p.',
                             style: GoogleFonts.inter(
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: sourceColor,
+                              color: palette.primary.withValues(alpha: 0.8),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                        ],
+                        _SourceBadge(source: source),
                       ],
                     ),
                   ],
                 ),
               ),
+
+              // ── Add button ──
               const SizedBox(width: 8),
-              // Add button
-              GestureDetector(
-                onTap: onTap,
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFC85A3E),
-                  ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: palette.primary.withValues(alpha: 0.1),
+                ),
+                child: Icon(
+                  Icons.add_rounded,
+                  color: palette.primary,
+                  size: 22,
                 ),
               ),
             ],
@@ -1024,28 +1199,65 @@ class _SearchResultCard extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _coverPlaceholder(ColorScheme cs) {
+class _CoverPlaceholder extends StatelessWidget {
+  final ThemePalette palette;
+  const _CoverPlaceholder({required this.palette});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: cs.primary.withValues(alpha: 0.08),
+        color: palette.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(
         Icons.book_rounded,
-        size: 22,
-        color: cs.primary.withValues(alpha: 0.2),
+        size: 26,
+        color: palette.primary.withValues(alpha: 0.2),
       ),
     );
   }
 }
 
-// ================================================================
-// Shimmer placeholder card for loading state
-// ================================================================
+class _SourceBadge extends StatelessWidget {
+  final String source;
+  const _SourceBadge({required this.source});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (source) {
+      'bnf' => ('BnF', const Color(0xFF2563EB)),
+      'google_books' => ('Google Books', const Color(0xFF4285F4)),
+      _ => ('OpenLibrary', const Color(0xFFD97706)),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        color: color.withValues(alpha: 0.1),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// Shimmer Loading
+// ============================================================
 class _ShimmerCard extends StatefulWidget {
-  final ColorScheme cs;
-  const _ShimmerCard({required this.cs});
+  final ThemePalette palette;
+  final bool isDark;
+  const _ShimmerCard({required this.palette, required this.isDark});
 
   @override
   State<_ShimmerCard> createState() => _ShimmerCardState();
@@ -1076,6 +1288,10 @@ class _ShimmerCardState extends State<_ShimmerCard>
 
   @override
   Widget build(BuildContext context) {
+    final shimmerColor = widget.isDark
+        ? widget.palette.textOnDark
+        : widget.palette.textPrimary;
+
     return AnimatedBuilder(
       animation: _shimmerAnim,
       builder: (context, child) {
@@ -1083,27 +1299,29 @@ class _ShimmerCardState extends State<_ShimmerCard>
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Container(
-            height: 92,
-            padding: const EdgeInsets.all(12),
+            height: 108,
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              color: widget.cs.surface,
+              borderRadius: BorderRadius.circular(16),
+              color: widget.isDark
+                  ? widget.palette.surfaceCardDark
+                  : widget.palette.surfaceCardLight,
               border: Border.all(
-                color: widget.cs.onSurface.withValues(alpha: 0.06),
+                color: shimmerColor.withValues(alpha: 0.04),
               ),
             ),
             child: Row(
               children: [
-                // Cover placeholder
+                // Cover
                 Container(
-                  width: 48,
-                  height: 68,
+                  width: 56,
+                  height: 80,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    color: widget.cs.onSurface.withValues(alpha: 0.08 * opacity),
+                    color: shimmerColor.withValues(alpha: 0.06 * opacity),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1111,31 +1329,34 @@ class _ShimmerCardState extends State<_ShimmerCard>
                     children: [
                       Container(
                         height: 14,
-                        width: 180,
+                        width: 200,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(6),
-                          color: widget.cs.onSurface
-                              .withValues(alpha: 0.08 * opacity),
+                          color: shimmerColor.withValues(
+                            alpha: 0.06 * opacity,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Container(
                         height: 12,
-                        width: 120,
+                        width: 140,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(6),
-                          color: widget.cs.onSurface
-                              .withValues(alpha: 0.06 * opacity),
+                          color: shimmerColor.withValues(
+                            alpha: 0.04 * opacity,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 10),
                       Container(
                         height: 10,
-                        width: 80,
+                        width: 90,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(6),
-                          color: widget.cs.onSurface
-                              .withValues(alpha: 0.05 * opacity),
+                          color: shimmerColor.withValues(
+                            alpha: 0.03 * opacity,
+                          ),
                         ),
                       ),
                     ],
@@ -1150,125 +1371,69 @@ class _ShimmerCardState extends State<_ShimmerCard>
   }
 }
 
-// ================================================================
-// Tip row for empty state
-// ================================================================
-class _TipRow extends StatelessWidget {
+// ============================================================
+// Tip Tile
+// ============================================================
+class _TipTile extends StatelessWidget {
   final IconData icon;
-  final String text;
-  final ColorScheme cs;
-
-  const _TipRow({
-    required this.icon,
-    required this.text,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: cs.primary.withValues(alpha: 0.08),
-            ),
-            child: Icon(icon, size: 16, color: cs.primary),
-          ),
-          const SizedBox(width: 14),
-          Text(
-            text,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: cs.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ================================================================
-// Collapsible section
-// ================================================================
-class _CollapsibleSection extends StatelessWidget {
   final String title;
-  final IconData icon;
-  final bool isOpen;
-  final ColorScheme cs;
-  final VoidCallback onToggle;
-  final Widget child;
+  final String subtitle;
+  final ThemePalette palette;
 
-  const _CollapsibleSection({
-    required this.title,
+  const _TipTile({
     required this.icon,
-    required this.isOpen,
-    required this.cs,
-    required this.onToggle,
-    required this.child,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: cs.surface,
+        color: palette.primary.withValues(alpha: 0.04),
         border: Border.all(
-          color: cs.onSurface.withValues(alpha: 0.06),
+          color: palette.primary.withValues(alpha: 0.06),
         ),
       ),
-      child: Column(
+      child: Row(
         children: [
-          InkWell(
-            onTap: onToggle,
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Icon(icon,
-                      size: 20, color: cs.onSurface.withValues(alpha: 0.5)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: GoogleFonts.outfit(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: isOpen ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      size: 20,
-                      color: cs.onSurface.withValues(alpha: 0.4),
-                    ),
-                  ),
-                ],
-              ),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: palette.primary.withValues(alpha: 0.08),
+            ),
+            child: Icon(
+              icon,
+              size: 18,
+              color: palette.primary,
             ),
           ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: child,
-            ),
-            crossFadeState: isOpen
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
-            sizeCurve: Curves.easeInOut,
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.outfit(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: palette.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: palette.textSecondary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1276,255 +1441,147 @@ class _CollapsibleSection extends StatelessWidget {
   }
 }
 
-// ================================================================
-// ISBN form
-// ================================================================
-class _IsbnForm extends StatelessWidget {
-  final TextEditingController isbnSearchController;
-  final bool isSearching;
-  final VoidCallback onSearch;
-  final ColorScheme cs;
+// ============================================================
+// Alternative Entry Methods
+// ============================================================
 
-  const _IsbnForm({
-    required this.isbnSearchController,
-    required this.isSearching,
-    required this.onSearch,
-    required this.cs,
+class _MethodTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final ThemePalette palette;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _MethodTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+    required this.isDark,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Saisissez le numéro ISBN-10 ou ISBN-13 pour trouver un livre instantanément.',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            height: 1.4,
-            color: cs.onSurface.withValues(alpha: 0.5),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
+          border: Border.all(
+            color: isDark
+                ? palette.textOnDark.withValues(alpha: 0.06)
+                : palette.textSecondary.withValues(alpha: 0.08),
           ),
         ),
-        const SizedBox(height: 14),
-        Row(
+        child: Row(
           children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: palette.primary.withValues(alpha: 0.08),
+              ),
+              child: Icon(icon, size: 22, color: palette.primary),
+            ),
+            const SizedBox(width: 14),
             Expanded(
-              child: SizedBox(
-                height: 48,
-                child: TextField(
-                  controller: isbnSearchController,
-                  keyboardType: TextInputType.text,
-                  style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
-                  decoration: InputDecoration(
-                    hintText: 'ISBN…',
-                    hintStyle: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: cs.onSurface.withValues(alpha: 0.35),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? palette.textOnDark : palette.textPrimary,
                     ),
-                    prefixIcon: Icon(Icons.qr_code_rounded,
-                        size: 20,
-                        color: cs.onSurface.withValues(alpha: 0.4)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                          color: cs.onSurface.withValues(alpha: 0.1)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                          color: cs.onSurface.withValues(alpha: 0.1)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: cs.primary, width: 1.5),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 14),
                   ),
-                ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: isDark
+                          ? palette.textOnDark.withValues(alpha: 0.5)
+                          : palette.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 12),
-            SizedBox(
-              height: 48,
-              child: FilledButton(
-                onPressed: isSearching ? null : onSearch,
-                style: FilledButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: isSearching
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        'Rechercher',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-              ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: isDark
+                  ? palette.textOnDark.withValues(alpha: 0.3)
+                  : palette.textSecondary.withValues(alpha: 0.4),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
 
-// ================================================================
-// Manual entry form
-// ================================================================
-class _ManualForm extends StatelessWidget {
-  final TextEditingController titleController;
-  final TextEditingController authorController;
-  final TextEditingController pagesController;
-  final VoidCallback onSubmit;
-  final ColorScheme cs;
-
-  const _ManualForm({
-    required this.titleController,
-    required this.authorController,
-    required this.pagesController,
-    required this.onSubmit,
-    required this.cs,
-  });
+// ============================================================
+// Add Book Success Dialog
+// ============================================================
+class _AddBookSuccessDialog extends StatelessWidget {
+  final Book book;
+  const _AddBookSuccessDialog({required this.book});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Ajoutez un livre qui n\'est pas dans les bases de données.',
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            height: 1.4,
-            color: cs.onSurface.withValues(alpha: 0.5),
+    final palette = ThemePalette.fromOption(AppThemeOption.terracotta);
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      title: Row(
+        children: [
+          Icon(
+            Icons.check_circle_rounded,
+            color: palette.primary,
+            size: 28,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Ajouté !',
+            style: GoogleFonts.outfit(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+      content: Text(
+        '« ${book.title} » a été ajouté à votre bibliothèque.\n\nVoulez-vous commencer la lecture ?',
+        style: GoogleFonts.inter(fontSize: 15, height: 1.4),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(
+            'Non',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
           ),
         ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: titleController,
-          style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
-          decoration: InputDecoration(
-            hintText: 'Titre *',
-            hintStyle: GoogleFonts.inter(
-              fontSize: 14,
-              color: cs.onSurface.withValues(alpha: 0.35),
-            ),
-            prefixIcon: Icon(Icons.title_rounded,
-                size: 20,
-                color: cs.onSurface.withValues(alpha: 0.4)),
-            border: OutlineInputBorder(
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: cs.onSurface.withValues(alpha: 0.1)),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: cs.onSurface.withValues(alpha: 0.1)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: cs.primary, width: 1.5),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: authorController,
-          style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
-          decoration: InputDecoration(
-            hintText: 'Auteur *',
-            hintStyle: GoogleFonts.inter(
-              fontSize: 14,
-              color: cs.onSurface.withValues(alpha: 0.35),
-            ),
-            prefixIcon: Icon(Icons.person_rounded,
-                size: 20,
-                color: cs.onSurface.withValues(alpha: 0.4)),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: cs.onSurface.withValues(alpha: 0.1)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: cs.onSurface.withValues(alpha: 0.1)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: cs.primary, width: 1.5),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: pagesController,
-          keyboardType: TextInputType.number,
-          style: GoogleFonts.inter(fontSize: 14, color: cs.onSurface),
-          decoration: InputDecoration(
-            hintText: 'Nombre de pages',
-            hintStyle: GoogleFonts.inter(
-              fontSize: 14,
-              color: cs.onSurface.withValues(alpha: 0.35),
-            ),
-            prefixIcon: Icon(Icons.numbers_rounded,
-                size: 20,
-                color: cs.onSurface.withValues(alpha: 0.4)),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: cs.onSurface.withValues(alpha: 0.1)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: cs.onSurface.withValues(alpha: 0.1)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: cs.primary, width: 1.5),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          ),
-        ),
-        const SizedBox(height: 18),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: FilledButton(
-            onPressed: onSubmit,
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(
-              'Ajouter le livre',
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          child: Text(
+            'Oui',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
           ),
         ),
       ],

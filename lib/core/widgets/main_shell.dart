@@ -71,6 +71,8 @@ class _MainShellState extends ConsumerState<MainShell> {
           selectedItemColor: palette.primary,
           unselectedItemColor: (isDark ? palette.textOnDark : palette.textPrimary)
               .withValues(alpha: 0.4),
+          showSelectedLabels: false,
+          showUnselectedLabels: false,
           selectedFontSize: 12,
           unselectedFontSize: 12,
           selectedLabelStyle:
@@ -86,27 +88,27 @@ class _MainShellState extends ConsumerState<MainShell> {
             BottomNavigationBarItem(
               icon: Icon(Icons.home_rounded),
               activeIcon: Icon(Icons.home_rounded),
-              label: 'Accueil',
+              label: '',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.auto_stories_rounded),
               activeIcon: Icon(Icons.auto_stories_rounded),
-              label: 'Bibliothèque',
+              label: '',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.search_rounded),
               activeIcon: Icon(Icons.search_rounded),
-              label: 'Recherche',
+              label: '',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.bar_chart_rounded),
               activeIcon: Icon(Icons.bar_chart_rounded),
-              label: 'Statistiques',
+              label: '',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.settings_rounded),
               activeIcon: Icon(Icons.settings_rounded),
-              label: 'Paramètres',
+              label: '',
             ),
           ],
         ),

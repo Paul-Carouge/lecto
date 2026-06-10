@@ -225,7 +225,6 @@ class _GreetingHeader extends ConsumerWidget {
             : 'Bonsoir';
 
     final userName = ref.watch(userNameProvider).valueOrNull ?? '';
-    final displayText = userName.isNotEmpty ? '$greeting $userName' : greeting;
 
     return Row(
       children: [
@@ -250,14 +249,31 @@ class _GreetingHeader extends ConsumerWidget {
         ),
         const SizedBox(width: 14),
         Expanded(
-          child: Text(
-            displayText,
-            style: GoogleFonts.outfit(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: isDark ? palette.textOnDark : palette.textPrimary,
-            ),
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                greeting,
+                style: GoogleFonts.outfit(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? palette.textOnDark : palette.textPrimary,
+                ),
+              ),
+              if (userName.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  userName,
+                  style: GoogleFonts.outfit(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w400,
+                    color: isDark 
+                        ? palette.textOnDark.withValues(alpha: 0.7)
+                        : palette.textSecondary,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],

@@ -539,6 +539,16 @@ class AppDatabase {
     return ReadingSession.fromMap(rows.first);
   }
 
+  /// Adds a session directly (for import), skipping duplicate check.
+  void addRawSession(ReadingSession session) {
+    _db.insert('reading_sessions', session.toMap());
+  }
+
+  /// Adds a goal directly (for import).
+  void addRawGoal(ReadingGoal goal) {
+    _db.insert('reading_goals', goal.toMap());
+  }
+
   /// Updates a session's pages read, end page, and duration (for manual entry).
   void updateSessionPages(String id, {required int pagesRead, int? endPage, int? durationSeconds}) {
     final now = DateTime.now();
