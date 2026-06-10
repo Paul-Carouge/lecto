@@ -45,6 +45,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
     final sessionState = ref.read(activeSessionProvider);
     if (state == AppLifecycleState.paused && sessionState.isRunning) {
       ref.read(activeSessionProvider.notifier).pauseSession();
+    } else if (state == AppLifecycleState.resumed && !sessionState.isRunning && sessionState.sessionId != null) {
+      ref.read(activeSessionProvider.notifier).resumeSession();
     }
   }
 

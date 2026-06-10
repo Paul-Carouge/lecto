@@ -148,16 +148,21 @@ class ActiveSession extends _$ActiveSession {
   }
 
   /// Resumes the timer from where it was paused.
-  /// NOTE: This does not persist a new DB session; it only resumes the local timer.
+  /// Uses the frozen [state.elapsed] as base so lock-screen time isn't counted.
   void resumeSession() {
     if (state.isRunning || state.sessionId == null) return;
-    // Recompute elapsed from the original start time
     final now = DateTime.now();
-    final baseElapsed = state.startTime != null
-        ? now.difference(state.startTime!)
-        : state.elapsed;
-    state = state.copyWith(elapsed: baseElapsed, isRunning: true);
+    // Use the frozen elapsed from pause, not now.difference(startTime)
+    // which would count phone-locked time as reading time.
+    final baseElapsed = state.elapsed;
+    if (baseElapsed == Duration.zero && state.startTime != null) {
+      // First resume (never paused before) — compute from start
+      state = state.copyWith(elapsed: now.difference(state.startTime!), isRunning: true);
+    } else {
+      state = state.copyWith(elapsed: baseElapsed, isRunning: true);
+    }
     final start = now;
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       state = state.copyWith(
         elapsed: DateTime.now().difference(start) + state.elapsed,
