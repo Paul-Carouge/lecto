@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lecto/core/database/database.dart';
 import 'package:lecto/features/books/providers/book_providers.dart';
+import 'package:lecto/core/router/app_router.dart';
 
 // ============================================================
 // Palette terracotta — couleurs chaleureuses pour la bibliothèque
@@ -259,11 +260,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
               onPressed: () {
                 HapticFeedback.lightImpact();
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/',
-                  (route) => route.isFirst,
-                );
+                Navigator.pushNamed(context, AppRouter.search);
               },
               child: const Icon(Icons.add_rounded, size: 28),
             )
@@ -564,11 +561,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     HapticFeedback.lightImpact();
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/',
-                      (route) => route.isFirst,
-                    );
+                    Navigator.pushNamed(context, AppRouter.search);
                   },
                   icon: const Icon(Icons.add_rounded, size: 20),
                   label: Text(

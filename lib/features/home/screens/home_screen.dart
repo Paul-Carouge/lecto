@@ -353,7 +353,7 @@ class _StatCard extends StatelessWidget {
 // Currently Reading Card  (full‑width)
 // ═══════════════════════════════════════════════════════════════
 
-class _ReadingCard extends StatelessWidget {
+class _ReadingCard extends ConsumerWidget {
   final Book book;
   final ThemePalette palette;
   final Color surface;
@@ -367,11 +367,12 @@ class _ReadingCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final coverUrl = book.coverUrl;
     final hasCover = coverUrl != null && coverUrl.isNotEmpty;
+    final pagesRead = ref.watch(bookPagesReadProvider(book.id)).valueOrNull ?? 0;
     final progress = book.pageCount != null && book.pageCount! > 0
-        ? 0.35 // placeholder — computed from bookPagesReadProvider in a future iteration
+        ? (pagesRead / book.pageCount!).clamp(0.0, 1.0)
         : 0.0;
 
     return GestureDetector(

@@ -438,7 +438,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _checkForUpdate(BuildContext context) async {
     HapticFeedback.lightImpact();
     final updaterService = ref.read(updaterServiceProvider);
-    updaterService.resetSessionCache();
     try {
       final info = await updaterService.checkForUpdate();
       if (!context.mounted) return;

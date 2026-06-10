@@ -166,7 +166,7 @@ class ActiveSession extends _$ActiveSession {
   }
 
   /// Ends the current session, persists it to the database, and resets state.
-  void endSession({int? endPage}) {
+  void endSession({int? endPage, int? pagesRead}) {
     if (state.sessionId == null) return;
 
     _timer?.cancel();
@@ -175,7 +175,7 @@ class ActiveSession extends _$ActiveSession {
     db.endSession(
       state.sessionId!,
       endPage: endPage ?? state.currentPage,
-      pagesRead: state.pagesRead,
+      pagesRead: pagesRead ?? state.pagesRead,
     );
 
     // Invalidate all dependent providers

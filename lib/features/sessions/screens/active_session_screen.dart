@@ -14,8 +14,8 @@ import 'package:lecto/features/stats/providers/stats_providers.dart';
 
 /// A beautifully redesigned active reading session screen.
 ///
-/// Clean, focused view with a large digital timer, intuitive page tracking,
-/// reading stats, and a smooth end-session flow with pages input + summary.
+/// Clean, focused view with a large digital timer and a smooth end-session
+/// flow with pages input + summary.
 class ActiveSessionScreen extends ConsumerStatefulWidget {
   final String bookId;
 
@@ -103,9 +103,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
 
     final notifier = ref.read(activeSessionProvider.notifier);
 
-    // Compute the endPage so pagesRead lands correctly
-    final endPage = (sessionState.startPage ?? 0) + pagesRead;
-
     if (bookFinished) {
       // Mark book as finished
       final now = DateTime.now();
@@ -114,8 +111,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
         'date_finished': now.toIso8601String(),
       });
 
-      // End session with correct pages
-      notifier.endSession(endPage: endPage);
+      // End session with pagesRead directly (no startPage set)
+      notifier.endSession(pagesRead: pagesRead);
 
       // Invalidate all related providers
       ref.invalidate(allBooksProvider);
@@ -146,7 +143,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
       }
     } else {
       // Not finished — just end session
-      notifier.endSession(endPage: endPage);
+      notifier.endSession(pagesRead: pagesRead);
 
       // Invalidate all related providers
       ref.invalidate(allBooksProvider);
@@ -371,21 +368,9 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
                 const SizedBox(height: 24),
 
                 // -------------------------------------------------------
-                // Page number (tappable for keyboard entry)
+                // Start session button (only if not started)
                 // -------------------------------------------------------
-                if (hasStarted)
-                  _PageDisplay(
-                    currentPage: sessionState.currentPage,
-                    onPageChange: (page) {
-                      ref
-                          .read(activeSessionProvider.notifier)
-                          .updateCurrentPage(page);
-                    },
-                    palette: palette,
-                    isDark: isDark,
-                    onSurface: onSurface,
-                  )
-                else
+                if (!hasStarted)
                   _StartSessionButton(
                     palette: palette,
                     onPressed: () {
@@ -393,20 +378,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen>
                           .read(activeSessionProvider.notifier)
                           .startSession(widget.bookId);
                     },
-                  ),
-
-                const SizedBox(height: 16),
-
-                // -------------------------------------------------------
-                // Stats row
-                // -------------------------------------------------------
-                if (hasStarted)
-                  _StatsRow(
-                    pagesRead: sessionState.pagesRead,
-                    elapsed: sessionState.elapsed,
-                    palette: palette,
-                    isDark: isDark,
-                    muted: muted,
                   ),
 
                 const Spacer(flex: 2),
@@ -882,226 +853,7 @@ class _TimerDisplay extends StatelessWidget {
   }
 }
 
-// ============================================================
-// Page display (tappable number for keyboard entry)
-// ============================================================
-class _PageDisplay extends StatelessWidget {
-  final int? currentPage;
-  final ValueChanged<int> onPageChange;
-  final ThemePalette palette;
-  final bool isDark;
-  final Color onSurface;
 
-  const _PageDisplay({
-    required this.currentPage,
-    required this.onPageChange,
-    required this.palette,
-    required this.isDark,
-    required this.onSurface,
-  });
-
-  Future<void> _showPageInputDialog(BuildContext context) async {
-    final page = currentPage ?? 0;
-    final controller = TextEditingController(text: page.toString());
-    final isDark = this.isDark;
-    final palette = this.palette;
-
-    final result = await showDialog<int>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: isDark ? palette.surfaceCardDark : palette.surfaceCardLight,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Text(
-            'Changer la page',
-            style: GoogleFonts.outfit(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: isDark ? palette.textOnDark : palette.textPrimary,
-            ),
-          ),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            autofocus: true,
-            style: GoogleFonts.outfit(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: isDark ? palette.textOnDark : palette.textPrimary,
-            ),
-            textAlign: TextAlign.center,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: palette.primary.withValues(alpha: 0.08),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(
-                'Annuler',
-                style: GoogleFonts.inter(
-                  color: palette.textSecondary,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                final value = int.tryParse(controller.text);
-                if (value != null && value >= 0) {
-                  Navigator.pop(dialogContext, value);
-                }
-              },
-              child: Text(
-                'OK',
-                style: GoogleFonts.inter(
-                  color: palette.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != null) {
-      HapticFeedback.mediumImpact();
-      onPageChange(result);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final page = currentPage ?? 0;
-
-    return GestureDetector(
-      onTap: () => _showPageInputDialog(context),
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 80),
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: palette.primary.withValues(alpha: 0.08),
-        ),
-        child: Text(
-          page.toString(),
-          textAlign: TextAlign.center,
-          style: GoogleFonts.outfit(
-            fontSize: 32,
-            fontWeight: FontWeight.w700,
-            color: onSurface,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// Stats row (Pages / Temps / Moyenne)
-// ============================================================
-class _StatsRow extends StatelessWidget {
-  final int? pagesRead;
-  final Duration elapsed;
-  final ThemePalette palette;
-  final bool isDark;
-  final Color muted;
-
-  const _StatsRow({
-    required this.pagesRead,
-    required this.elapsed,
-    required this.palette,
-    required this.isDark,
-    required this.muted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Format elapsed time as HH:MM (no seconds)
-    final hours = elapsed.inHours;
-    final minutes = elapsed.inMinutes.remainder(60);
-    final timeStr =
-        '${hours.toString().padLeft(2, '0')}h${minutes.toString().padLeft(2, '0')}m';
-
-    // Calculate pages/min
-    final totalMinutes =
-        elapsed.inMinutes > 0 ? elapsed.inMinutes : 1;
-    final pages = pagesRead ?? 0;
-    final avg = pages > 0
-        ? (pages / totalMinutes).toStringAsFixed(1)
-        : '0.0';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _StatChip(
-            label: 'Pages',
-            value: pages.toString(),
-            muted: muted,
-          ),
-          const SizedBox(width: 16),
-          _StatChip(
-            label: 'Temps',
-            value: timeStr,
-            muted: muted,
-          ),
-          const SizedBox(width: 16),
-          _StatChip(
-            label: 'Moyenne',
-            value: '$avg p/min',
-            muted: muted,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color muted;
-
-  const _StatChip({
-    required this.label,
-    required this.value,
-    required this.muted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          style: GoogleFonts.outfit(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: muted,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            color: muted.withValues(alpha: 0.6),
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 // ============================================================
 // Start session button (before session begins)

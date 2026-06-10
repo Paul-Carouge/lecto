@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lecto/features/books/screens/book_detail_screen.dart';
+import 'package:lecto/features/books/screens/add_book_screen.dart';
 import 'package:lecto/features/onboarding/screens/onboarding_screen.dart';
 import 'package:lecto/features/sessions/screens/active_session_screen.dart';
 import 'package:lecto/features/sessions/screens/session_history_screen.dart';
@@ -9,6 +10,7 @@ import 'package:lecto/core/widgets/main_shell.dart';
 
 class AppRouter {
   static const String home = '/';
+  static const String search = '/search';
   static const String sessions = '/sessions';
   static const String goals = '/goals';
   static const String wrapped = '/wrapped';
@@ -63,6 +65,8 @@ class AppRouter {
     switch (path) {
       case home:
         return MaterialPageRoute(builder: (_) => const MainShell());
+      case search:
+        return MaterialPageRoute(builder: (_) => const AddBookScreen());
       case sessions:
         return MaterialPageRoute(builder: (_) => const SessionHistoryScreen());
       case goals:
